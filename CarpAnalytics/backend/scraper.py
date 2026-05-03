@@ -159,8 +159,19 @@ def scrape_real_data():
                         "image_url": f"https://placehold.co/150x150/FF0000/FFFFFF?text={i}"
                     }
                     
-                    player_data['current_performance'] = potential_engine.calculate_current_performance(batting_avg, home_runs, era)
-                    player_data['potential_score'] = potential_engine.calculate_potential(age, years_in_pro, player_data['current_performance'], position)
+                    player_data['current_performance'] = potential_engine.calculate_current_performance(
+                        batting_avg=batting_avg, 
+                        home_runs=home_runs, 
+                        era=era,
+                        defense=defense,
+                        speed=speed
+                    )
+                    player_data['potential_score'] = potential_engine.calculate_potential(
+                        age=age, 
+                        years_in_pro=years_in_pro, 
+                        current_performance=player_data['current_performance'], 
+                        position=position
+                    )
                     
                     players.append(player_data)
                     
