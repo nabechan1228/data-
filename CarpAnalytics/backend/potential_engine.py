@@ -45,20 +45,21 @@ def calculate_current_performance(
     
     # 野手の場合
     if batting_avg is not None and (batting_avg > 0 or home_runs > 0):
-        # 打撃スコア (打率 0.4 + 本塁打 0.3)
-        avg_score = ((max(0.180, min(0.350, batting_avg)) - 0.180) / (0.350 - 0.180)) * 100
+        # 打撃スコアの計算基準を調整（.250を中央値付近に）
+        avg_score = ((max(0.150, min(0.350, batting_avg)) - 0.150) / (0.350 - 0.150)) * 100
         hr_score = (min(home_runs or 0, 40) / 40.0) * 100
         
-        # 総合スコア = 打撃 70% + 守備 15% + 走力 15%
-        score = (avg_score * 0.4) + (hr_score * 0.3) + (defense * 0.15) + (speed * 0.15)
+        # 総合スコアの配分を変更
+        # 守備のウェイトを15% -> 35%に引き上げ、打撃(50%)、守備(35%)、走力(15%)の構成に
+        score = (avg_score * 0.30) + (hr_score * 0.20) + (defense * 0.35) + (speed * 0.15)
         
     # 投手の場合
     elif era is not None and era > 0:
-        # 防御率スコア (低いほど良い)
+        # 防御率スコア
         era_clamped = max(1.20, min(7.00, era))
         era_score = 100 - ((era_clamped - 1.20) / (7.00 - 1.20)) * 100
         
-        # 投手は防御率重視 (80%) + 守備/フィールディング (20%)
-        score = (era_score * 0.8) + (defense * 0.1) + (speed * 0.1)
+        # 投手も守備（フィールディング）の貢献度を少し上げる (20%)
+        score = (era_score * 0.8) + (defense * 0.15) + (speed * 0.05)
         
     return max(0.0, min(100.0, score))

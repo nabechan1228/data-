@@ -86,13 +86,15 @@ def scrape_real_data():
                     # スター選手などの特例補正
                     overrides = {
                         '小園　海斗': {'batting_avg': 0.286, 'home_runs': 2, 'defense': 85, 'speed': 85},
-                        '菊池　涼介': {'defense': 98, 'speed': 70, 'batting_avg': 0.240, 'home_runs': 9},
+                        '菊池　涼介': {'defense': 99, 'speed': 70, 'batting_avg': 0.240, 'home_runs': 9},
+                        '矢野　雅哉': {'defense': 98, 'speed': 85, 'batting_avg': 0.260},
                         '秋山　翔吾': {'batting_avg': 0.289, 'defense': 85, 'speed': 75},
                         '坂倉　将吾': {'batting_avg': 0.279, 'home_runs': 12, 'defense': 70},
                         '大瀬良　大地': {'era': 1.86, 'defense': 60},
                         '森下　暢仁': {'era': 2.50, 'defense': 70},
                         '栗林　良吏': {'era': 1.96},
-                        '矢野　雅哉': {'defense': 95, 'speed': 80, 'batting_avg': 0.260},
+                        '源田　壮亮': {'defense': 99, 'speed': 80, 'batting_avg': 0.250},
+                        '辰己　涼介': {'defense': 98, 'speed': 85, 'batting_avg': 0.270},
                     }
                     
                     if '投手' in position:
