@@ -1,14 +1,19 @@
 import sqlite3
 from typing import List, Dict
+import os
 
-DB_PATH = "carp_data.db"
+# 絶対パスでDBを指定（ディレクトリトラバーサル対策）
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_BASE_DIR, "carp_data.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    cursor.execute('DROP TABLE IF EXISTS players')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS players (
+        CREATE TABLE players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            team TEXT NOT NULL,
             name TEXT NOT NULL,
             position TEXT NOT NULL,
             age INTEGER,
@@ -35,9 +40,9 @@ def save_players(players_data: List[Dict]):
     
     for p in players_data:
         cursor.execute('''
-            INSERT INTO players (name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
+            INSERT INTO players (team, name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (p.get('team'), p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
               p.get('current_performance'), p.get('potential_score'), 
               p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
               p.get('defense'), p.get('speed'), p.get('image_url')))

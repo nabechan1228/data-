@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+*.egg-info/
+
+# 環境変数（シークレット情報 - 絶対にコミット禁止）
+.env
+.env.local
+.env.production
+**/.env
+**/.env.local
+
+# データベース（定期的に再生成するため除外推奨）
+# CarpAnalytics/backend/carp_data.db
+
+# Node.js
+node_modules/
+dist/
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.swp

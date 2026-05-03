@@ -1,7 +1,7 @@
 import React from 'react';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts';
 
-const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId }) => {
+const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId, comparePlayerId }) => {
   // 散布図用のデータ整形
   const data = players.map(p => ({
     id: p.id,
@@ -61,19 +61,26 @@ const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId }) => {
             }}
           >
             {data.map((entry, index) => {
-              let dotColor = "#E50012"; // デフォルト（赤）
-              if (entry.position.includes('投手')) dotColor = "#3B82F6"; // 青
-              else if (entry.position.includes('捕手')) dotColor = "#10B981"; // 緑
-              else if (entry.position.includes('内野手')) dotColor = "#F59E0B"; // オレンジ
-              else if (entry.position.includes('外野手')) dotColor = "#8B5CF6"; // 紫
+              let dotColor = "#E50012";
+              if (entry.position.includes('投手')) dotColor = "#3B82F6";
+              else if (entry.position.includes('捕手')) dotColor = "#10B981";
+              else if (entry.position.includes('内野手')) dotColor = "#F59E0B";
+              else if (entry.position.includes('外野手')) dotColor = "#8B5CF6";
+
+              const isSelected = entry.id === selectedPlayerId;
+              const isCompare  = entry.id === comparePlayerId;
+              // ドットが多いため、基本のサイズを小さくし、不透明度を下げる
+              const size = isSelected || isCompare ? 8 : (players.length > 200 ? 4 : 6);
+              const opacity = isSelected || isCompare ? 1 : (players.length > 200 ? 0.6 : 0.8);
 
               return (
-                <Cell 
-                  key={`cell-${index}`} 
-                  fill={entry.id === selectedPlayerId ? "#FFFFFF" : dotColor} 
-                  stroke={entry.id === selectedPlayerId ? "#F59E0B" : "#FFFFFF"}
-                  strokeWidth={entry.id === selectedPlayerId ? 3 : 1}
-                  r={entry.id === selectedPlayerId ? 8 : 6}
+                <Cell
+                  key={`cell-${index}`}
+                  fill={isSelected ? "#FFFFFF" : isCompare ? "#60A5FA" : dotColor}
+                  stroke={isSelected ? "#F59E0B" : isCompare ? "#BFDBFE" : "#FFFFFF"}
+                  strokeWidth={isSelected || isCompare ? 3 : 0}
+                  r={size}
+                  fillOpacity={opacity}
                   style={{ cursor: 'pointer', transition: 'all 0.3s' }}
                 />
               );
