@@ -60,21 +60,35 @@ const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId }) => {
               if (player) onSelectPlayer(player);
             }}
           >
-            {data.map((entry, index) => (
-              <Cell 
-                key={`cell-${index}`} 
-                fill={entry.id === selectedPlayerId ? "#F59E0B" : "#E50012"} 
-                stroke="#FFFFFF"
-                strokeWidth={entry.id === selectedPlayerId ? 2 : 0}
-                r={entry.id === selectedPlayerId ? 8 : 6}
-                style={{ cursor: 'pointer', transition: 'all 0.3s' }}
-              />
-            ))}
+            {data.map((entry, index) => {
+              let dotColor = "#E50012"; // デフォルト（赤）
+              if (entry.position.includes('投手')) dotColor = "#3B82F6"; // 青
+              else if (entry.position.includes('捕手')) dotColor = "#10B981"; // 緑
+              else if (entry.position.includes('内野手')) dotColor = "#F59E0B"; // オレンジ
+              else if (entry.position.includes('外野手')) dotColor = "#8B5CF6"; // 紫
+
+              return (
+                <Cell 
+                  key={`cell-${index}`} 
+                  fill={entry.id === selectedPlayerId ? "#FFFFFF" : dotColor} 
+                  stroke={entry.id === selectedPlayerId ? "#F59E0B" : "#FFFFFF"}
+                  strokeWidth={entry.id === selectedPlayerId ? 3 : 1}
+                  r={entry.id === selectedPlayerId ? 8 : 6}
+                  style={{ cursor: 'pointer', transition: 'all 0.3s' }}
+                />
+              );
+            })}
           </Scatter>
         </ScatterChart>
       </ResponsiveContainer>
       <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94A3B8', fontSize: '0.8rem', marginTop: '10px' }}>
         <span>← 発展途上</span>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <span style={{color: '#3B82F6'}}>● 投手</span>
+          <span style={{color: '#10B981'}}>● 捕手</span>
+          <span style={{color: '#F59E0B'}}>● 内野手</span>
+          <span style={{color: '#8B5CF6'}}>● 外野手</span>
+        </div>
         <span>実績トップクラス →</span>
       </div>
     </div>

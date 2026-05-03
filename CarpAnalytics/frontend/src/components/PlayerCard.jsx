@@ -17,8 +17,8 @@ const PlayerCard = ({ player }) => {
   ] : [
     { subject: 'パワー', reality: player.home_runs ? player.home_runs * 5 : 30, vision: player.potential_score * 0.9 },
     { subject: 'ミート力', reality: player.batting_avg ? player.batting_avg * 300 : 40, vision: player.potential_score * 0.85 },
-    { subject: 'スピード', reality: 50, vision: 65 }, // モック値
-    { subject: '守備力', reality: 60, vision: 70 }, // モック値
+    { subject: 'スピード', reality: player.speed || 50, vision: 65 }, 
+    { subject: '守備力', reality: player.defense || 60, vision: 70 }, 
     { subject: '安定感', reality: player.current_performance, vision: 80 }
   ];
 

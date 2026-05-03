@@ -18,6 +18,8 @@ def init_db():
             batting_avg REAL,
             home_runs INTEGER,
             era REAL,
+            defense INTEGER,
+            speed INTEGER,
             image_url TEXT
         )
     ''')
@@ -33,11 +35,12 @@ def save_players(players_data: List[Dict]):
     
     for p in players_data:
         cursor.execute('''
-            INSERT INTO players (name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
               p.get('current_performance'), p.get('potential_score'), 
-              p.get('batting_avg'), p.get('home_runs'), p.get('era'), p.get('image_url')))
+              p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
+              p.get('defense'), p.get('speed'), p.get('image_url')))
     
     conn.commit()
     conn.close()
