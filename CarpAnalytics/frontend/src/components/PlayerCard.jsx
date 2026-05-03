@@ -5,13 +5,21 @@ const PlayerCard = ({ player }) => {
   if (!player) return null;
 
   // レーダーチャート用のデータ生成（モックデータ）
-  // 実績(Reality)とポテンシャル(Vision)を比較
-  const radarData = [
-    { subject: 'Power', reality: player.home_runs ? player.home_runs * 5 : 30, vision: player.potential_score * 0.9 },
-    { subject: 'Contact', reality: player.batting_avg ? player.batting_avg * 300 : 40, vision: player.potential_score * 0.85 },
-    { subject: 'Speed', reality: 50, vision: 65 }, // モック値
-    { subject: 'Defense', reality: 60, vision: 70 }, // モック値
-    { subject: 'Consistency', reality: player.current_performance, vision: 80 }
+  // 投手か野手かで評価項目を切り替える
+  const isPitcher = player.position.includes('投手');
+  
+  const radarData = isPitcher ? [
+    { subject: '球威', reality: player.era ? Math.max(0, 100 - player.era * 15) : 50, vision: player.potential_score * 0.9 },
+    { subject: 'コントロール', reality: 60, vision: player.potential_score * 0.85 }, // モック値
+    { subject: 'スタミナ', reality: 50, vision: 65 }, // モック値
+    { subject: '変化球', reality: 70, vision: 75 }, // モック値
+    { subject: '安定感', reality: player.current_performance, vision: 80 }
+  ] : [
+    { subject: 'パワー', reality: player.home_runs ? player.home_runs * 5 : 30, vision: player.potential_score * 0.9 },
+    { subject: 'ミート力', reality: player.batting_avg ? player.batting_avg * 300 : 40, vision: player.potential_score * 0.85 },
+    { subject: 'スピード', reality: 50, vision: 65 }, // モック値
+    { subject: '守備力', reality: 60, vision: 70 }, // モック値
+    { subject: '安定感', reality: player.current_performance, vision: 80 }
   ];
 
   return (
