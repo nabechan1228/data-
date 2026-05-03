@@ -85,7 +85,7 @@ function App() {
   }
 
   const handleUpdateData = async () => {
-    if (!window.confirm('選手データをNPBサイトから再取得します。1〜2分かかります。よろしいですか？')) return
+    if (!window.confirm('選手データをNPBサイトから再取得します。数分かかります。よろしいですか？')) return
     setUpdating(true)
     setUpdateMsg(null)
     try {
@@ -96,6 +96,26 @@ function App() {
       )
       setUpdateMsg({ type: 'success', text: res.data.message })
       fetchPlayers()
+    } catch (err) {
+      setUpdateMsg({ type: 'error', text: sanitizeError(err) })
+    } finally {
+      setUpdating(false)
+    }
+  }
+
+  const handleUpdateStats = async () => {
+    setUpdating(true)
+    setUpdateMsg(null)
+    try {
+      const res = await axios.post(
+        `${API_URL}/api/update-stats`,
+        {},
+        { headers: { 'X-Request-Token': SCRAPE_TOKEN } }
+      )
+      const updated = res.data.last_updated
+        ? `（最終更新: ${new Date(res.data.last_updated).toLocaleString('ja-JP')}）`
+        : ''
+      setUpdateMsg({ type: 'success', text: `${res.data.message}${updated}` })
     } catch (err) {
       setUpdateMsg({ type: 'error', text: sanitizeError(err) })
     } finally {
@@ -146,9 +166,19 @@ function App() {
           </button>
           <button
             className="update-btn"
+            onClick={handleUpdateStats}
+            disabled={updating}
+            title="今季1軍成績を更新（約10秒）"
+            style={{ background: 'rgba(16,185,129,0.1)', borderColor: '#10B981', color: '#10B981' }}
+          >
+            <RefreshCw size={16} className={updating ? 'spinning' : ''} />
+            {updating ? '更新中…' : '成績更新'}
+          </button>
+          <button
+            className="update-btn"
             onClick={handleUpdateData}
             disabled={updating}
-            title="NPBサイトからデータ更新"
+            title="選手ロースターをNPBサイトから再取得（数分）"
           >
             <RefreshCw size={16} className={updating ? 'spinning' : ''} />
             {updating ? '更新中…' : 'データ更新'}

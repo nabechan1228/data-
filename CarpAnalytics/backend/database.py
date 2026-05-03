@@ -1,10 +1,16 @@
 import sqlite3
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
+from datetime import datetime
 
 # 絶対パスでDBを指定（ディレクトリトラバーサル対策）
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_BASE_DIR, "carp_data.db")
+
+def _get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -28,16 +34,69 @@ def init_db():
             image_url TEXT
         )
     ''')
+    # 今季成績テーブル（playersと分離して毎日軽量更新）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS season_stats_2026 (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_name  TEXT NOT NULL,
+            team         TEXT,
+            stat_type    TEXT NOT NULL,
+            games        INTEGER,
+            batting_avg  REAL,
+            hits         INTEGER,
+            home_runs    INTEGER,
+            rbi          INTEGER,
+            stolen_bases INTEGER,
+            on_base_pct  REAL,
+            slg_pct      REAL,
+            era          REAL,
+            wins         INTEGER,
+            losses       INTEGER,
+            saves        INTEGER,
+            holds        INTEGER,
+            strikeouts   INTEGER,
+            last_updated TEXT,
+            UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def ensure_stats_table():
+    """season_stats_2026テーブルだけをIF NOT EXISTSで作成（players再作成なし）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS season_stats_2026 (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_name  TEXT NOT NULL,
+            team         TEXT,
+            stat_type    TEXT NOT NULL,
+            games        INTEGER,
+            batting_avg  REAL,
+            hits         INTEGER,
+            home_runs    INTEGER,
+            rbi          INTEGER,
+            stolen_bases INTEGER,
+            on_base_pct  REAL,
+            slg_pct      REAL,
+            era          REAL,
+            wins         INTEGER,
+            losses       INTEGER,
+            saves        INTEGER,
+            holds        INTEGER,
+            strikeouts   INTEGER,
+            last_updated TEXT,
+            UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
+        )
+    ''')
     conn.commit()
     conn.close()
 
 def save_players(players_data: List[Dict]):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    
-    # 簡単のため、今回は都度クリアして入れ直す設計とします
     cursor.execute('DELETE FROM players')
-    
     for p in players_data:
         cursor.execute('''
             INSERT INTO players (team, name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, image_url)
@@ -46,18 +105,77 @@ def save_players(players_data: List[Dict]):
               p.get('current_performance'), p.get('potential_score'), 
               p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
               p.get('defense'), p.get('speed'), p.get('image_url')))
-    
+    conn.commit()
+    conn.close()
+
+def save_season_stats(stats_list: List[Dict]):
+    """今季成績を一括保存（UPSERT: 同じ選手名+stat_typeは上書き）"""
+    now = datetime.now().isoformat()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    for s in stats_list:
+        cursor.execute('''
+            INSERT OR REPLACE INTO season_stats_2026
+            (player_name, team, stat_type, games, batting_avg, hits, home_runs, rbi,
+             stolen_bases, on_base_pct, slg_pct, era, wins, losses, saves, holds, strikeouts, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            s.get('player_name'), s.get('team'), s.get('stat_type'),
+            s.get('games'), s.get('batting_avg'), s.get('hits'), s.get('home_runs'),
+            s.get('rbi'), s.get('stolen_bases'), s.get('on_base_pct'), s.get('slg_pct'),
+            s.get('era'), s.get('wins'), s.get('losses'), s.get('saves'),
+            s.get('holds'), s.get('strikeouts'), now
+        ))
     conn.commit()
     conn.close()
 
 def get_all_players() -> List[Dict]:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM players')
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+def get_season_stats(team: Optional[str] = None, stat_type: Optional[str] = None) -> List[Dict]:
+    """今季成績を取得。team/stat_typeでフィルタ可能"""
+    conn = _get_conn()
+    cursor = conn.cursor()
+    query = 'SELECT * FROM season_stats_2026 WHERE 1=1'
+    params = []
+    if team:
+        query += ' AND team = ?'
+        params.append(team)
+    if stat_type:
+        query += ' AND stat_type = ?'
+        params.append(stat_type)
+    query += ' ORDER BY games DESC'
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_player_season_stats(player_name: str) -> List[Dict]:
+    """特定選手の今季成績（打者・投手両方）を取得"""
+    conn = _get_conn()
+    cursor = conn.cursor()
+    # スペースの有無を考慮した部分マッチ
+    name_normalized = player_name.replace('\u3000', ' ').replace(' ', '')
+    cursor.execute('''
+        SELECT * FROM season_stats_2026
+        WHERE replace(replace(player_name, '\u3000', ''), ' ', '') LIKE ?
+    ''', (f'%{name_normalized}%',))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+def get_stats_last_updated() -> Optional[str]:
+    """成績の最終更新日時を返す"""
+    conn = _get_conn()
+    cursor = conn.cursor()
+    row = cursor.execute('SELECT MAX(last_updated) FROM season_stats_2026').fetchone()
+    conn.close()
+    return row[0] if row else None
 
 if __name__ == "__main__":
     init_db()
