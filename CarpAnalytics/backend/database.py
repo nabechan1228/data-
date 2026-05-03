@@ -1,6 +1,7 @@
 import sqlite3
 from typing import List, Dict, Optional
 import os
+import re
 from datetime import datetime
 
 # 絶対パスでDBを指定（ディレクトリトラバーサル対策）
@@ -159,12 +160,14 @@ def get_player_season_stats(player_name: str) -> List[Dict]:
     """特定選手の今季成績（打者・投手両方）を取得"""
     conn = _get_conn()
     cursor = conn.cursor()
-    # スペースの有無を考慮した部分マッチ
-    name_normalized = player_name.replace('\u3000', ' ').replace(' ', '')
+    # スペースの有無を考慮した正規化（全角・半角・タブ等すべて削除）
+    name_norm = re.sub(r'[\s　]', '', player_name)
+    
+    # SQLiteのreplaceを使用してDB側の値も正規化して比較
     cursor.execute('''
         SELECT * FROM season_stats_2026
-        WHERE replace(replace(player_name, '\u3000', ''), ' ', '') LIKE ?
-    ''', (f'%{name_normalized}%',))
+        WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ?
+    ''', (f'%{name_norm}%',))
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]

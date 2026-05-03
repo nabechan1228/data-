@@ -21,20 +21,20 @@ USER_AGENTS = [
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 ]
 
-# 球団略称 → 正式名マッピング（NPBサイトの括弧内の略称から変換）
-TEAM_ABBR_MAP = {
-    '広': '広島東洋カープ',
-    '巨': '読売ジャイアンツ',
-    '神': '阪神タイガース',
-    'デ': '横浜DeNAベイスターズ',
-    'ヤ': '東京ヤクルトスワローズ',
-    '中': '中日ドラゴンズ',
-    'オ': 'オリックス・バファローズ',
-    'ロ': '千葉ロッテマリーンズ',
-    'ソ': '福岡ソフトバンクホークス',
-    '楽': '東北楽天ゴールデンイーグルス',
-    '西': '埼玉西武ライオンズ',
-    '日': '北海道日本ハムファイターズ',
+# 球団コード → 正式名マッピング
+TEAM_CODE_MAP = {
+    'c': '広島東洋カープ',
+    'g': '読売ジャイアンツ',
+    't': '阪神タイガース',
+    'db': '横浜DeNAベイスターズ',
+    'd': '中日ドラゴンズ',
+    's': '東京ヤクルトスワローズ',
+    'b': 'オリックス・バファローズ',
+    'm': '千葉ロッテマリーンズ',
+    'h': '福岡ソフトバンクホークス',
+    'e': '東北楽天ゴールデンイーグルス',
+    'l': '埼玉西武ライオンズ',
+    'f': '北海道日本ハムファイターズ',
 }
 
 
@@ -55,23 +55,12 @@ def _get(url: str, max_retries: int = 3) -> requests.Response:
     raise RuntimeError(f"Failed to fetch {url} after {max_retries} retries")
 
 
-def _parse_player_name_and_team(cell_text: str):
-    """
-    '佐藤　輝明(神)' のような形式から選手名と球団を分離する。
-    """
-    import re
-    match = re.match(r'(.+?)\((.)\)', cell_text.strip())
-    if match:
-        name = match.group(1).strip()
-        abbr = match.group(2).strip()
-        team = TEAM_ABBR_MAP.get(abbr, abbr)
-        return name, team
-    return cell_text.strip(), ''
-
-
 def _safe_float(val: str):
     try:
+        # ".333" などの形式を "0.333" に補完
         v = val.strip().replace('-', '').replace('ー', '')
+        if v.startswith('.'):
+            v = '0' + v
         return float(v) if v else None
     except (ValueError, AttributeError):
         return None
@@ -85,22 +74,29 @@ def _safe_int(val: str):
         return None
 
 
-def scrape_batting_stats(league: str) -> list:
-    """打者成績をスクレイピング。league='c' or 'p'"""
+def scrape_batting_stats(team_code: str) -> list:
+    """球団別の全打者成績をスクレイピング"""
     year = 2026
-    url = f'https://npb.jp/bis/{year}/stats/bat_{league}.html'
-    logger.info(f"Scraping batting stats from {url}")
-    res = _get(url)
+    team_name = TEAM_CODE_MAP.get(team_code, team_code)
+    url = f'https://npb.jp/bis/{year}/stats/idb1_{team_code}.html'
+    logger.info(f"Scraping batting stats for {team_name} from {url}")
+    
+    try:
+        res = _get(url)
+    except Exception as e:
+        logger.error(f"Failed to fetch batting stats for {team_code}: {e}")
+        return []
+        
     soup = BeautifulSoup(res.text, 'html.parser')
-
     tables = soup.find_all('table')
     if not tables:
         logger.error(f"No table found at {url}")
         return []
 
+    # 球団別ページは通常最初のテーブルが成績
     table = tables[0]
     headers = [th.text.strip() for th in table.find_all('th')]
-    rows = table.find_all('tr')[1:]  # ヘッダー行をスキップ
+    rows = table.find_all('tr')[1:]
 
     stats_list = []
     for row in rows:
@@ -108,10 +104,14 @@ def scrape_batting_stats(league: str) -> list:
         if len(tds) < 5:
             continue
         try:
-            # 選手名セルを取得（リンク内のテキスト）
-            name_td = tds[1]
-            raw_name = name_td.text.strip()
-            player_name, team = _parse_player_name_and_team(raw_name)
+            # 選手名セル (個別ページでは「選手」または1列目)
+            # ヘッダーに「選手」があるか確認
+            player_idx = headers.index('選手') if '選手' in headers else 0
+            player_name = tds[player_idx].text.strip()
+            
+            # 合計行などをスキップ
+            if not player_name or player_name == 'チーム合計' or player_name == '選手':
+                continue
 
             def col(key):
                 if key in headers:
@@ -121,7 +121,7 @@ def scrape_batting_stats(league: str) -> list:
 
             stats_list.append({
                 'player_name': player_name,
-                'team': team,
+                'team': team_name,
                 'stat_type': 'batting',
                 'games': _safe_int(col('試合')),
                 'batting_avg': _safe_float(col('打率')),
@@ -139,20 +139,26 @@ def scrape_batting_stats(league: str) -> list:
                 'strikeouts': None,
             })
         except Exception as e:
-            logger.warning(f"Error parsing batting row: {e}")
+            logger.debug(f"Row parse error (batting): {e}")
 
     logger.info(f"  -> {len(stats_list)} batters scraped")
     return stats_list
 
 
-def scrape_pitching_stats(league: str) -> list:
-    """投手成績をスクレイピング。league='c' or 'p'"""
+def scrape_pitching_stats(team_code: str) -> list:
+    """球団別の全投手成績をスクレイピング"""
     year = 2026
-    url = f'https://npb.jp/bis/{year}/stats/pit_{league}.html'
-    logger.info(f"Scraping pitching stats from {url}")
-    res = _get(url)
+    team_name = TEAM_CODE_MAP.get(team_code, team_code)
+    url = f'https://npb.jp/bis/{year}/stats/idp1_{team_code}.html'
+    logger.info(f"Scraping pitching stats for {team_name} from {url}")
+    
+    try:
+        res = _get(url)
+    except Exception as e:
+        logger.error(f"Failed to fetch pitching stats for {team_code}: {e}")
+        return []
+        
     soup = BeautifulSoup(res.text, 'html.parser')
-
     tables = soup.find_all('table')
     if not tables:
         logger.error(f"No table found at {url}")
@@ -168,9 +174,11 @@ def scrape_pitching_stats(league: str) -> list:
         if len(tds) < 5:
             continue
         try:
-            name_td = tds[1]
-            raw_name = name_td.text.strip()
-            player_name, team = _parse_player_name_and_team(raw_name)
+            player_idx = headers.index('投手') if '投手' in headers else 0
+            player_name = tds[player_idx].text.strip()
+            
+            if not player_name or player_name == 'チーム合計' or player_name == '投手':
+                continue
 
             def col(key):
                 if key in headers:
@@ -180,7 +188,7 @@ def scrape_pitching_stats(league: str) -> list:
 
             stats_list.append({
                 'player_name': player_name,
-                'team': team,
+                'team': team_name,
                 'stat_type': 'pitching',
                 'games': _safe_int(col('登板')),
                 'batting_avg': None,
@@ -198,7 +206,7 @@ def scrape_pitching_stats(league: str) -> list:
                 'strikeouts': _safe_int(col('三振')),
             })
         except Exception as e:
-            logger.warning(f"Error parsing pitching row: {e}")
+            logger.debug(f"Row parse error (pitching): {e}")
 
     logger.info(f"  -> {len(stats_list)} pitchers scraped")
     return stats_list
@@ -206,16 +214,15 @@ def scrape_pitching_stats(league: str) -> list:
 
 def scrape_all_stats() -> int:
     """
-    セ・パ両リーグの打者・投手成績を取得してDBに保存する。
-    戻り値: 保存したレコード数
+    全12球団の全選手成績を取得してDBに保存する。
     """
     database.ensure_stats_table()
     all_stats = []
 
-    for league in ['c', 'p']:
-        all_stats.extend(scrape_batting_stats(league))
+    for team_code in TEAM_CODE_MAP.keys():
+        all_stats.extend(scrape_batting_stats(team_code))
         time.sleep(0.5)
-        all_stats.extend(scrape_pitching_stats(league))
+        all_stats.extend(scrape_pitching_stats(team_code))
         time.sleep(0.5)
 
     database.save_season_stats(all_stats)
@@ -229,3 +236,4 @@ if __name__ == '__main__':
     sys.stdout.reconfigure(encoding='utf-8')
     count = scrape_all_stats()
     print(f"Done. {count} records saved.")
+
