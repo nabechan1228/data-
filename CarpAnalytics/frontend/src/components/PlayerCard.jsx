@@ -193,6 +193,7 @@ const SeasonStatsTable = ({ title, stats, type }) => (
       {type === 'batting' ? (
         <>
           <StatRow label="試合" value={stats.games} />
+          <StatRow label="打席" value={stats.plate_appearances} />
           <StatRow label="打率" value={stats.batting_avg?.toFixed(3)} highlight={stats.batting_avg >= 0.300} />
           <StatRow label="安打" value={stats.hits} />
           <StatRow label="本塁打" value={stats.home_runs} highlight={stats.home_runs >= 10} />
@@ -200,10 +201,12 @@ const SeasonStatsTable = ({ title, stats, type }) => (
           <StatRow label="盗塁" value={stats.stolen_bases} />
           <StatRow label="出塁率" value={stats.on_base_pct?.toFixed(3)} />
           <StatRow label="長打率" value={stats.slg_pct?.toFixed(3)} />
+          <StatRow label="OPS" value={stats.ops?.toFixed(3)} highlight={stats.ops >= 0.850} />
         </>
       ) : (
         <>
           <StatRow label="登板" value={stats.games} />
+          <StatRow label="投球回" value={stats.innings_pitched?.toFixed(1)} />
           <StatRow label="防御率" value={stats.era?.toFixed(2)} highlight={stats.era !== null && stats.era <= 2.50} />
           <StatRow label="勝利" value={stats.wins} />
           <StatRow label="敗北" value={stats.losses} />

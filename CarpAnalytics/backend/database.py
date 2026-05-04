@@ -38,25 +38,30 @@ def init_db():
     # 今季成績テーブル（playersと分離して毎日軽量更新）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS season_stats_2026 (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_name  TEXT NOT NULL,
-            team         TEXT,
-            stat_type    TEXT NOT NULL,
-            games        INTEGER,
-            batting_avg  REAL,
-            hits         INTEGER,
-            home_runs    INTEGER,
-            rbi          INTEGER,
-            stolen_bases INTEGER,
-            on_base_pct  REAL,
-            slg_pct      REAL,
-            era          REAL,
-            wins         INTEGER,
-            losses       INTEGER,
-            saves        INTEGER,
-            holds        INTEGER,
-            strikeouts   INTEGER,
-            last_updated TEXT,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_name       TEXT NOT NULL,
+            team              TEXT,
+            league            TEXT,
+            stat_type         TEXT NOT NULL,
+            games             INTEGER,
+            plate_appearances INTEGER,
+            innings_pitched   REAL,
+            team_games        INTEGER,
+            batting_avg       REAL,
+            hits              INTEGER,
+            home_runs         INTEGER,
+            rbi               INTEGER,
+            stolen_bases      INTEGER,
+            on_base_pct       REAL,
+            slg_pct           REAL,
+            ops               REAL,
+            era               REAL,
+            wins              INTEGER,
+            losses            INTEGER,
+            saves             INTEGER,
+            holds             INTEGER,
+            strikeouts        INTEGER,
+            last_updated      TEXT,
             UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
         )
     ''')
@@ -64,33 +69,56 @@ def init_db():
     conn.close()
 
 def ensure_stats_table():
-    """season_stats_2026テーブルだけをIF NOT EXISTSで作成（players再作成なし）"""
+    """season_stats_2026テーブルを作成し、必要に応じてカラムを追加（マイグレーション）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS season_stats_2026 (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            player_name  TEXT NOT NULL,
-            team         TEXT,
-            stat_type    TEXT NOT NULL,
-            games        INTEGER,
-            batting_avg  REAL,
-            hits         INTEGER,
-            home_runs    INTEGER,
-            rbi          INTEGER,
-            stolen_bases INTEGER,
-            on_base_pct  REAL,
-            slg_pct      REAL,
-            era          REAL,
-            wins         INTEGER,
-            losses       INTEGER,
-            saves        INTEGER,
-            holds        INTEGER,
-            strikeouts   INTEGER,
-            last_updated TEXT,
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            player_name       TEXT NOT NULL,
+            team              TEXT,
+            league            TEXT,
+            stat_type         TEXT NOT NULL,
+            games             INTEGER,
+            plate_appearances INTEGER,
+            innings_pitched   REAL,
+            team_games        INTEGER,
+            batting_avg       REAL,
+            hits              INTEGER,
+            home_runs         INTEGER,
+            rbi               INTEGER,
+            stolen_bases      INTEGER,
+            on_base_pct       REAL,
+            slg_pct           REAL,
+            ops               REAL,
+            era               REAL,
+            wins              INTEGER,
+            losses            INTEGER,
+            saves             INTEGER,
+            holds             INTEGER,
+            strikeouts        INTEGER,
+            last_updated      TEXT,
             UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
         )
     ''')
+    
+    # 既存テーブルへのカラム追加（マイグレーション）
+    cursor.execute("PRAGMA table_info(season_stats_2026)")
+    columns = [row[1] for row in cursor.fetchall()]
+    
+    new_columns = [
+        ("league", "TEXT"),
+        ("plate_appearances", "INTEGER"),
+        ("innings_pitched", "REAL"),
+        ("team_games", "INTEGER"),
+        ("ops", "REAL")
+    ]
+    
+    for col_name, col_type in new_columns:
+        if col_name not in columns:
+            cursor.execute(f"ALTER TABLE season_stats_2026 ADD COLUMN {col_name} {col_type}")
+            print(f"Added column {col_name} to season_stats_2026")
+
     conn.commit()
     conn.close()
 
@@ -117,13 +145,15 @@ def save_season_stats(stats_list: List[Dict]):
     for s in stats_list:
         cursor.execute('''
             INSERT OR REPLACE INTO season_stats_2026
-            (player_name, team, stat_type, games, batting_avg, hits, home_runs, rbi,
-             stolen_bases, on_base_pct, slg_pct, era, wins, losses, saves, holds, strikeouts, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (player_name, team, league, stat_type, games, plate_appearances, innings_pitched, team_games,
+             batting_avg, hits, home_runs, rbi, stolen_bases, on_base_pct, slg_pct, ops,
+             era, wins, losses, saves, holds, strikeouts, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            s.get('player_name'), s.get('team'), s.get('stat_type'),
-            s.get('games'), s.get('batting_avg'), s.get('hits'), s.get('home_runs'),
-            s.get('rbi'), s.get('stolen_bases'), s.get('on_base_pct'), s.get('slg_pct'),
+            s.get('player_name'), s.get('team'), s.get('league'), s.get('stat_type'),
+            s.get('games'), s.get('plate_appearances'), s.get('innings_pitched'), s.get('team_games'),
+            s.get('batting_avg'), s.get('hits'), s.get('home_runs'),
+            s.get('rbi'), s.get('stolen_bases'), s.get('on_base_pct'), s.get('slg_pct'), s.get('ops'),
             s.get('era'), s.get('wins'), s.get('losses'), s.get('saves'),
             s.get('holds'), s.get('strikeouts'), now
         ))
@@ -138,8 +168,8 @@ def get_all_players() -> List[Dict]:
     conn.close()
     return [dict(row) for row in rows]
 
-def get_season_stats(team: Optional[str] = None, stat_type: Optional[str] = None) -> List[Dict]:
-    """今季成績を取得。team/stat_typeでフィルタ可能"""
+def get_season_stats(team: Optional[str] = None, stat_type: Optional[str] = None, league: Optional[str] = None) -> List[Dict]:
+    """今季成績を取得。team/stat_type/leagueでフィルタ可能"""
     conn = _get_conn()
     cursor = conn.cursor()
     query = 'SELECT * FROM season_stats_2026 WHERE 1=1'
@@ -150,6 +180,9 @@ def get_season_stats(team: Optional[str] = None, stat_type: Optional[str] = None
     if stat_type:
         query += ' AND stat_type = ?'
         params.append(stat_type)
+    if league:
+        query += ' AND league = ?'
+        params.append(league)
     query += ' ORDER BY games DESC'
     cursor.execute(query, params)
     rows = cursor.fetchall()

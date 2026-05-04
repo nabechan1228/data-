@@ -128,6 +128,13 @@ def _validate_team(team: str | None) -> str | None:
         raise HTTPException(status_code=422, detail="無効な球団名です。")
     return team
 
+def _validate_league(league: str | None) -> str | None:
+    if league is None:
+        return None
+    if league not in ('Central', 'Pacific'):
+        raise HTTPException(status_code=422, detail="リーグ名はCentralまたはPacificのみ有効です。")
+    return league
+
 def _validate_stat_type(stat_type: str | None) -> str | None:
     if stat_type is None:
         return None
@@ -186,14 +193,16 @@ def get_season_stats(
     request: Request,
     team: str | None = Query(default=None, max_length=50),
     stat_type: str | None = Query(default=None, max_length=20),
+    league: str | None = Query(default=None, max_length=20),
 ):
-    """今季1軍成績を取得（team/stat_typeでフィルタ可能）"""
+    """今季1軍成績を取得（team/stat_type/leagueでフィルタ可能）"""
     team = _validate_team(team)
     stat_type = _validate_stat_type(stat_type)
+    league = _validate_league(league)
     try:
-        stats = database.get_season_stats(team=team, stat_type=stat_type)
+        stats = database.get_season_stats(team=team, stat_type=stat_type, league=league)
         last_updated = database.get_stats_last_updated()
-        logger.info(f"GET /api/season-stats team={team} type={stat_type} -> {len(stats)} records.")
+        logger.info(f"GET /api/season-stats team={team} type={stat_type} league={league} -> {len(stats)} records.")
         return {
             "status": "success",
             "last_updated": last_updated,

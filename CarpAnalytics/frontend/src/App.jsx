@@ -4,7 +4,8 @@ import './App.css'
 import PlayerCard from './components/PlayerCard'
 import PotentialMatrix from './components/PotentialMatrix'
 import ComparePanel from './components/ComparePanel'
-import { Activity, Users, RefreshCw, Search, BarChart2 } from 'lucide-react'
+import SeasonRankings from './components/SeasonRankings'
+import { Activity, Users, RefreshCw, Search, BarChart2, Trophy } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const SCRAPE_TOKEN = import.meta.env.VITE_SCRAPE_SECRET_TOKEN || ''
@@ -44,6 +45,13 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState(null)
+  const [view, setView] = useState('matrix') // 'matrix' or 'rankings'
+  const [filterLeague, setFilterLeague] = useState('Both') // 'Central', 'Pacific', 'Both'
+
+  const LEAGUE_TEAMS = {
+    'Central': ['広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ', '中日ドラゴンズ', '東京ヤクルトスワローズ'],
+    'Pacific': ['オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ']
+  }
 
   const fetchPlayers = useCallback(() => {
     setLoading(true)
@@ -70,6 +78,10 @@ function App() {
 
   // フィルタリング & ソート & 検索
   const filteredPlayers = players
+    .filter(p => {
+      if (filterLeague === 'Both') return true;
+      return LEAGUE_TEAMS[filterLeague].includes(p.team);
+    })
     .filter(p => filterTeam === '全球団' || p.team === filterTeam)
     .filter(p => filterPosition === '全員' || p.position.includes(filterPosition))
     .filter(p => p.name.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
@@ -156,6 +168,14 @@ function App() {
           </div>
         </div>
         <div className="header-actions">
+          <div className="tab-switcher" style={{ marginRight: '16px' }}>
+            <button className={`tab-btn ${view === 'matrix' ? 'active' : ''}`} onClick={() => setView('matrix')}>
+              <Activity size={16} /> マトリクス
+            </button>
+            <button className={`tab-btn ${view === 'rankings' ? 'active' : ''}`} onClick={() => setView('rankings')}>
+              <Trophy size={16} /> 成績ランキング
+            </button>
+          </div>
           <button
             className={`compare-toggle-btn ${compareMode ? 'active' : ''}`}
             onClick={() => { setCompareMode(!compareMode); setComparePlayer(null) }}
@@ -205,13 +225,19 @@ function App() {
 
           {/* フィルター類 */}
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <div className="filter-bar">
+              <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
+              <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
+              <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
+            </div>
+
             <div className="search-bar" style={{ marginBottom: 0, minWidth: '200px' }}>
               <select 
                 value={filterTeam} 
                 onChange={(e) => setFilterTeam(e.target.value)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem' }}
               >
-                {TEAMS.map(team => (
+                {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
                   <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
                 ))}
               </select>
@@ -231,17 +257,21 @@ function App() {
             </div>
           </div>
 
-          <div className="panel">
-            <h2 className="panel-title">
-              <Activity size={20} color="var(--accent-red)" /> Potential Matrix (実績 vs 潜在能力)
-            </h2>
-            <PotentialMatrix
-              players={filteredPlayers}
-              onSelectPlayer={handlePlayerClick}
-              selectedPlayerId={selectedPlayer?.id}
-              comparePlayerId={comparePlayer?.id}
-            />
-          </div>
+          {view === 'matrix' ? (
+            <div className="panel">
+              <h2 className="panel-title">
+                <Activity size={20} color="var(--accent-red)" /> Potential Matrix (実績 vs 潜在能力)
+              </h2>
+              <PotentialMatrix
+                players={filteredPlayers}
+                onSelectPlayer={handlePlayerClick}
+                selectedPlayerId={selectedPlayer?.id}
+                comparePlayerId={comparePlayer?.id}
+              />
+            </div>
+          ) : (
+            <SeasonRankings />
+          )}
 
           {/* 比較パネル */}
           {compareMode && selectedPlayer && comparePlayer && (
