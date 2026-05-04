@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Radar as RechartsRadar } from 'recharts';
 
 const PlayerCard = ({ player, seasonStats }) => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -20,7 +20,8 @@ const PlayerCard = ({ player, seasonStats }) => {
 
   const radarData = useMemo(() => {
     if (!player) return [];
-    const bonus = situationalMode ? 10 : 0;
+    // 覚醒（is_awakened）状態の選手は、得点圏モードでのボーナスが通常(+10)より高い(+15)
+    const bonus = situationalMode ? (player.is_awakened ? 15 : 10) : 0;
     
     // バックエンドで計算済みの軸データがある場合はそれを使用する
     const perfAxes = player.perf_axes_json ? JSON.parse(player.perf_axes_json) : null;
@@ -38,16 +39,16 @@ const PlayerCard = ({ player, seasonStats }) => {
     // フォールバック
     const baseData = isPitcher ? [
       { subject: '球威', reality: 60 + bonus, vision: 80 },
-      { subject: '制球', reality: 60, vision: 80 },
-      { subject: 'スタミナ', reality: 50, vision: 70 },
-      { subject: '守備/変化', reality: 70, vision: 80 },
-      { subject: '安定感', reality: 60, vision: 85 }
+      { subject: '制球', reality: 60 + bonus, vision: 80 },
+      { subject: 'スタミナ', reality: 50 + bonus, vision: 70 },
+      { subject: '守備/変化', reality: 70 + bonus, vision: 80 },
+      { subject: '安定感', reality: 60 + bonus, vision: 85 }
     ] : [
       { subject: 'パワー', reality: 60 + bonus, vision: 80 },
       { subject: 'ミート', reality: 60 + bonus, vision: 80 },
-      { subject: 'スピード', reality: 60, vision: 75 },
-      { subject: '守備', reality: 60, vision: 75 },
-      { subject: '安定感', reality: 60, vision: 85 }
+      { subject: 'スピード', reality: 60 + bonus, vision: 75 },
+      { subject: '守備', reality: 60 + bonus, vision: 75 },
+      { subject: '安定感', reality: 60 + bonus, vision: 85 }
     ];
 
     if (showGhost) {
@@ -122,9 +123,9 @@ const PlayerCard = ({ player, seasonStats }) => {
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                 <Tooltip />
-                {showGhost && <Radar name="Legend" dataKey="ghost" stroke="#64748b" fill="#64748b" fillOpacity={0.1} strokeDasharray="4 4" />}
-                <Radar name="Potential" dataKey="vision" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.05} strokeWidth={3} />
-                <Radar name="Current" dataKey="reality" stroke="#E50012" fill="#E50012" fillOpacity={0.6} strokeWidth={2} />
+                {showGhost && <RechartsRadar name="Legend" dataKey="ghost" stroke="#64748b" fill="#64748b" fillOpacity={0.1} strokeDasharray="4 4" />}
+                <RechartsRadar name="Potential" dataKey="vision" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.05} strokeWidth={3} />
+                <RechartsRadar name="Current" dataKey="reality" stroke="#E50012" fill="#E50012" fillOpacity={0.6} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
             {player.is_unbalanced && <div className="unbalanced-badge">一芸特化</div>}

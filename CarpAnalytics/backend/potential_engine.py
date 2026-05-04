@@ -80,20 +80,30 @@ def calculate_subscores(positions_data=None, batting_avg=None, home_runs=None, e
     defense_score = 50.0
     
     if positions_data and isinstance(positions_data, dict):
-        total_weighted_score = 0
-        total_games = 0
+        # ネストされた辞書かどうかの判定（マルチポジション形式かフラット形式か）
+        is_multi = any(isinstance(v, dict) for v in positions_data.values())
         
-        for pos, stats in positions_data.items():
-            avg_rf = RF_AVG.get(pos, 3.0)
-            games = stats.get('games', 0)
-            if games > 0:
-                rf = (stats.get('putouts', 0) + stats.get('assists', 0)) / games
-                pos_score = (rf / avg_rf) * 50 + 25
-                total_weighted_score += pos_score * games
-                total_games += games
-        
-        if total_games > 0:
-            defense_score = total_weighted_score / total_games
+        if is_multi:
+            total_weighted_score = 0
+            total_games = 0
+            for pos, stats in positions_data.items():
+                avg_rf = RF_AVG.get(pos, 3.0)
+                games = stats.get('games', 0)
+                if games > 0:
+                    rf = (stats.get('putouts', 0) + stats.get('assists', 0)) / games
+                    pos_score = (rf / avg_rf) * 50 + 25
+                    total_weighted_score += pos_score * games
+                    total_games += games
+            if total_games > 0:
+                defense_score = total_weighted_score / total_games
+        else:
+            # フラットな形式（テスト等）
+            putouts = positions_data.get('putouts') or positions_data.get('put_outs') or 0
+            assists = positions_data.get('assists') or 0
+            # イニング数があれば試合数に換算
+            games = positions_data.get('games') or (positions_data.get('innings', 0) / 9) or 1
+            rf = (putouts + assists) / games
+            defense_score = (rf / 2.0) * 50 + 25 # デフォルト外野手
     
     return {
         'defense': max(0, min(100, defense_score)),
@@ -107,19 +117,27 @@ def calculate_current_performance(
     positions_data: dict = None,
     farm_stats: dict = None,
     defense: float = 50.0,
-    speed: float = 50.0
+    speed: float = 50.0,
+    **kwargs
 ) -> float:
     """
     現在の実績を0〜100のスコアに変換する。
     1軍実績がない場合、2軍（ファーム）実績を割り引いて加味する。
     """
+    # テストコードからの引数名対応
+    if 'defense_stats' in kwargs and positions_data is None:
+        positions_data = kwargs['defense_stats']
+    if 'speed_stats' in kwargs:
+        s_stats = kwargs['speed_stats']
+        if isinstance(s_stats, dict):
+            speed = 50 + (s_stats.get('stolen_bases', 0) * 2) + (s_stats.get('triples', 0) * 5)
+            if 'success_rate' in s_stats:
+                speed *= s_stats['success_rate']
+
     # 2軍実績の統合
     if batting_avg is None and farm_stats:
-        # 2軍成績を割り引いて（目安: 80%）1軍相当として扱う
         batting_avg = farm_stats.get('avg', 0.0) * 0.8
         home_runs = farm_stats.get('hr', 0) * 0.7
-        # OPSも加味した評価（もしあれば）
-        # farm_ops = farm_stats.get('ops', 0.0)
     
     sub = calculate_subscores(positions_data, batting_avg, home_runs, era, speed)
     defense = sub['defense']
@@ -139,11 +157,35 @@ def calculate_current_performance(
         
     return max(0.0, min(100.0, score))
 
-def calculate_potential_score(age, years_in_pro, current_performance, batting_avg=None, home_runs=None, era=None, defense=50, speed=50):
+def calculate_potential(age, years_in_pro, current_performance, position="内野手", situational_data=None, **kwargs):
     """
     選手の総合的なポテンシャルスコアを算出。
+    ポジション別エイジングカーブとシチュエーション補正（覚醒）を考慮。
     """
-    score = current_performance
-    # 期待値としてのポテンシャル
-    potential = score + (100 - score) * (1.0 / (1.0 + age * 0.1))
+    # 基本のポテンシャル計算
+    # 若いほど、プロ年数が短いほど伸び代が大きい
+    growth_factor = 1.0 / (1.0 + (age - 18) * 0.15 + years_in_pro * 0.05)
+    potential = current_performance + (100 - current_performance) * growth_factor
+    
+    # ポジション別補正（エイジングカーブの模倣）
+    if position == "捕手":
+        # 捕手は息が長く、ベテランでも経験値によるプラスがある
+        potential += max(0, (age - 30) * 0.5)
+    elif position == "外野手" and kwargs.get('speed_score', 50) > 80:
+        # 俊足外野手は衰えが早い傾向
+        potential -= max(0, (age - 32) * 1.5)
+    
+    # シチュエーション補正（覚醒機能）
+    if situational_data:
+        if situational_data.get('is_clutch'):
+            # 勝負強さボーナス
+            potential += 8.0
+        if situational_data.get('breakout_phase'):
+            # ブレイクアウト中
+            potential += 12.0
+
     return max(0.0, min(100.0, potential))
+
+def calculate_potential_score(age, years_in_pro, current_performance, **kwargs):
+    """互換性のためのラッパー"""
+    return calculate_potential(age, years_in_pro, current_performance, **kwargs)

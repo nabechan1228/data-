@@ -37,8 +37,7 @@ def get_draft_year(player_name, player_id, session, cache):
     logger.info(f'Fetching detail for {player_name} ({player_id})...')
     url = f'https://npb.jp/bis/players/{player_id}.html'
     try:
-        res = session.get(url, timeout=5)
-        res.encoding = 'utf-8'
+        res = stats_scraper._get(url)
         soup = BeautifulSoup(res.text, 'html.parser')
         
         # 1. Look for Draft info
@@ -83,8 +82,7 @@ def scrape_real_data(target_team_code=None):
         logger.info(f'Scraping {team_name}...')
         
         url = f'https://npb.jp/bis/teams/rst_{team_code}.html'
-        res = session.get(url)
-        res.encoding = 'utf-8'
+        res = stats_scraper._get(url)
         soup = BeautifulSoup(res.text, 'html.parser')
         
         fielding = stats_scraper.scrape_fielding_stats(team_code)
@@ -211,24 +209,45 @@ def scrape_real_data(target_team_code=None):
                 ]
                 sim_name, sim_score, ghost_axes = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
             
-            perf_axes = [max(10, min(100, x + random.uniform(-2, 2))) for x in perf_axes]
-            pot_axes = [min(100, pot_score * (0.8 + 0.05*i)) for i in range(5)]
+            perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
+            pot_axes = [max(10, min(100, pot_score)) for _ in range(5)] # 歪みを修正
             
             perf_area = potential_engine.calculate_chart_area(perf_axes)
             pot_area = potential_engine.calculate_chart_area(pot_axes)
             
+            # 一芸特化（Unbalanced）の判定: 最大値と最小値の差が40以上
+            is_unbalanced = (max(perf_axes) - min(perf_axes)) > 40
+
+            # 勝負強さ（Clutch）の判定: 打点(RBI)が本塁打数に対して高いか
+            rbi = batting['rbi'] if batting else 0
+            is_clutch = False
+            if not era and batting:
+                expected_rbi = (home_runs or 0) * 1.5 + 5
+                if rbi > expected_rbi and rbi > 10:
+                    is_clutch = True
+            elif era:
+                # 投手の場合は防御率が良く、かつ勝利数が多い場合など（簡易判定）
+                wins = pitching['wins'] if pitching else 0
+                if era < 3.0 and wins > 3:
+                    is_clutch = True
+
+            # 覚醒判定: 収束率が高い or 勝負強さがある
+            convergence = (perf_area / pot_area) if pot_area > 0 else 0
+            is_awakened = convergence > 0.82 or is_clutch
+
             player_data = {
                 'team': team_name, 'name': player_name, 'position': pos,
                 'age': age, 'years_in_pro': years,
                 'current_performance': current_perf, 'potential_score': pot_score,
                 'batting_avg': batting_avg, 'home_runs': home_runs, 'era': era,
                 'perf_area': int(perf_area), 'pot_area': int(pot_area),
-                'convergence_rate': round((perf_area / pot_area * 100), 1) if pot_area > 0 else 0,
+                'convergence_rate': round((convergence * 100), 1),
                 'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
                 'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
                 'similarity_name': sim_name, 'similarity_score': sim_score,
                 'ghost_axes_json': json.dumps(ghost_axes),
-                'is_awakened': (perf_area / pot_area) > 0.85 if pot_area > 0 else False,
+                'is_awakened': is_awakened,
+                'is_unbalanced': is_unbalanced,
                 'image_url': f'https://api.dicebear.com/7.x/avataaars/svg?seed={player_name}'
             }
             team_players.append(player_data)

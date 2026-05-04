@@ -40,14 +40,21 @@ def _get(url: str, max_retries: int = 3) -> requests.Response:
         try:
             res = requests.get(url, headers=headers, timeout=15)
             if res.status_code == 200:
-                # Detect encoding from content
-                if b'charset=Shift_JIS' in res.content or b'charset=shift_jis' in res.content:
-                    res.encoding = 'shift_jis'
-                elif b'charset=UTF-8' in res.content or b'charset=utf-8' in res.content or b'charset="utf-8"' in res.content:
+                # Detect encoding from content or URL
+                if b'charset=utf-8' in res.content.lower() or b'charset="utf-8"' in res.content.lower():
                     res.encoding = 'utf-8'
-                elif res.encoding == 'ISO-8859-1' or 'npb.jp' in url:
-                    # npb.jp often defaults to shift_jis if not specified, but check apparent_encoding
-                    res.encoding = res.apparent_encoding if res.apparent_encoding and res.apparent_encoding != 'ISO-8859-1' else 'shift_jis'
+                elif b'charset=shift_jis' in res.content.lower() or b'charset=cp932' in res.content.lower():
+                    res.encoding = 'cp932'
+                elif 'npb.jp' in url:
+                    # Default for NPB if no charset tag found
+                    # Many new pages are UTF-8, but old ones are CP932.
+                    # Use apparent_encoding as a hint, but default to utf-8 if it seems likely.
+                    if res.apparent_encoding in ('utf-8', 'ascii'):
+                        res.encoding = 'utf-8'
+                    else:
+                        res.encoding = 'cp932'
+                else:
+                    res.encoding = res.apparent_encoding
                 return res
             logger.warning(f"HTTP {res.status_code} for {url}, attempt {attempt + 1}")
         except requests.RequestException as e:
@@ -174,16 +181,14 @@ def scrape_fielding_stats(team_code: str) -> dict:
     fielding_data = {}
     
     current_pos = "Unknown"
-    # Iterate through elements to track position context
     for elem in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'table', 'div', 'th']):
         if elem.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'th'] or 'stats_title' in elem.get('class', []) or 'stitle' in elem.get('class', []):
             text = elem.text.strip()
-            # ポジション名が含まれているか判定
             for p in ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "外野手"]:
-                if p in text and len(text) < 15: # 長すぎるテキストは除外
+                if p in text and len(text) < 15:
                     current_pos = p
                     break
-            if elem.name != 'table': # tableの場合はそのまま解析へ
+            if elem.name != 'table':
                 continue
 
         if elem.name == 'table':
@@ -270,7 +275,6 @@ def scrape_all_stats() -> int:
         for b in batters:
             f = fielding.get(normalize_name(b['player_name']))
             if f and 'positions' in f:
-                # 合計値を算出
                 b['putouts'] = sum(p.get('putouts', 0) for p in f['positions'].values())
                 b['assists'] = sum(p.get('assists', 0) for p in f['positions'].values())
                 b['errors'] = sum(p.get('errors', 0) for p in f['positions'].values())
