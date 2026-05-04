@@ -68,7 +68,7 @@ const PlayerCard = ({ player, seasonStats }) => {
         <div className="player-info">
           <div className="name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h2 className="player-name" style={{ margin: 0 }}>{player.name}</h2>
-            {player.is_awakened && <span className="awakening-label">Awakening</span>}
+            {!!player.is_awakened && <span className="awakening-label">Awakening</span>}
           </div>
           <p className="player-meta">
             {player.team} | {player.position} | {player.age}歳 | プロ{player.years_in_pro}年目
@@ -128,7 +128,7 @@ const PlayerCard = ({ player, seasonStats }) => {
                 <RechartsRadar name="Current" dataKey="reality" stroke="#E50012" fill="#E50012" fillOpacity={0.6} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
-            {player.is_unbalanced && <div className="unbalanced-badge">一芸特化</div>}
+            {!!player.is_unbalanced && <div className="unbalanced-badge">一芸特化</div>}
           </div>
 
           <div className="metrics-summary" style={{ 
