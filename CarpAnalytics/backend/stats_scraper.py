@@ -10,6 +10,7 @@ import database
 import time
 import random
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,14 @@ LEAGUE_MAP = {
     'c': 'Central', 'g': 'Central', 't': 'Central', 'db': 'Central', 'd': 'Central', 's': 'Central',
     'b': 'Pacific', 'm': 'Pacific', 'h': 'Pacific', 'e': 'Pacific', 'l': 'Pacific', 'f': 'Pacific',
 }
+
+
+def normalize_name(name: str) -> str:
+    """名前の空白（全角・半角）および特殊記号（* + # 等）を除去して正規化する"""
+    if not name: return ""
+    # 先頭や途中の特殊記号を除去
+    name = re.sub(r'[*+#]', '', name)
+    return re.sub(r'[\s　]', '', name)
 
 
 def _get(url: str, max_retries: int = 3) -> requests.Response:
@@ -213,7 +222,7 @@ def scrape_batting_stats(team_code: str, team_games_fallback: int = 0) -> list:
             ops = round(obp + slg, 3) if obp is not None and slg is not None else None
 
             stats_list.append({
-                'player_name': player_name,
+                'player_name': normalize_name(player_name),
                 'team': team_name,
                 'league': league,
                 'stat_type': 'batting',
@@ -235,6 +244,11 @@ def scrape_batting_stats(team_code: str, team_games_fallback: int = 0) -> list:
                 'saves': None,
                 'holds': None,
                 'strikeouts': None,
+                'putouts': None,
+                'assists': None,
+                'errors': None,
+                'triples': _safe_int(col('三塁打')),
+                'stolen_base_caught': _safe_int(col('盗塁刺')),
             })
         except Exception as e:
             logger.debug(f"Row parse error (batting): {e}")
@@ -342,7 +356,7 @@ def scrape_pitching_stats(team_code: str, team_games_fallback: int = 0) -> list:
                         ip_val += float(p)
 
             stats_list.append({
-                'player_name': player_name,
+                'player_name': normalize_name(player_name),
                 'team': team_name,
                 'league': league,
                 'stat_type': 'pitching',
@@ -372,6 +386,71 @@ def scrape_pitching_stats(team_code: str, team_games_fallback: int = 0) -> list:
     return stats_list
 
 
+def scrape_fielding_stats(team_code: str) -> dict:
+    """球団別の全選手守備成績をスクレイピング"""
+    year = 2026
+    team_name = TEAM_CODE_MAP.get(team_code, team_code)
+    url = f'https://npb.jp/bis/{year}/stats/idf1_{team_code}.html'
+    logger.info(f"Scraping fielding stats for {team_name} from {url}")
+    
+    try:
+        res = _get(url)
+    except Exception as e:
+        logger.error(f"Failed to fetch fielding stats for {team_code}: {e}")
+        return {}
+        
+    soup = BeautifulSoup(res.text, 'html.parser')
+    tables = soup.find_all('table')
+    if not tables:
+        return {}
+
+    fielding_data = {}
+    for table in tables:
+        all_rows = table.find_all('tr')
+        
+        header_row = None
+        headers = []
+        for row in all_rows:
+            ths = row.find_all(['th', 'td'])
+            txts = [th.text.strip() for th in ths]
+            if '選手' in txts:
+                header_row = row
+                headers = txts
+                break
+        
+        if not header_row:
+            continue
+
+        rows = all_rows[all_rows.index(header_row) + 1:]
+        for row in rows:
+            tds = row.find_all(['td', 'th'])
+            if len(tds) < 5: continue
+            
+            player_idx = headers.index('選手') if '選手' in headers else 0
+            raw_name = tds[player_idx].text.strip()
+            if not raw_name or raw_name in ('チーム合計', '合計'):
+                continue
+                
+            p_name = normalize_name(raw_name)
+                
+            def col(key):
+                if key in headers:
+                    idx = headers.index(key)
+                    return tds[idx].text.strip() if idx < len(tds) else ''
+                return ''
+
+            # 同一選手が複数ポジションを守る場合があるため、合算する
+            if p_name not in fielding_data:
+                fielding_data[p_name] = {'putouts': 0, 'assists': 0, 'errors': 0, 'games': 0}
+                
+            fielding_data[p_name]['putouts'] += _safe_int(col('刺殺')) or 0
+            fielding_data[p_name]['assists'] += _safe_int(col('補殺')) or 0
+            fielding_data[p_name]['errors'] += _safe_int(col('失策')) or 0
+            fielding_data[p_name]['games'] = max(fielding_data[p_name]['games'], _safe_int(col('試合')) or 0)
+
+    return fielding_data
+
+
 def scrape_all_stats() -> int:
     """
     全12球団の全選手成績を取得してDBに保存する。
@@ -387,9 +466,34 @@ def scrape_all_stats() -> int:
         team_name = TEAM_CODE_MAP.get(team_code)
         fallback_games = team_games_map.get(team_name, 0)
         
-        all_stats.extend(scrape_batting_stats(team_code, fallback_games))
+        # 打撃成績取得
+        batters = scrape_batting_stats(team_code, fallback_games)
+        # 守備成績取得
+        fielding = scrape_fielding_stats(team_code)
+        
+        # 打撃成績に守備データをマージ
+        for b in batters:
+            f = fielding.get(normalize_name(b['player_name']))
+            if f:
+                b['putouts'] = f['putouts']
+                b['assists'] = f['assists']
+                b['errors'] = f['errors']
+                # 守備試合数の方が正確な場合があるが、一旦打撃試合数優先
+        
+        all_stats.extend(batters)
         time.sleep(0.5)
-        all_stats.extend(scrape_pitching_stats(team_code, fallback_games))
+        
+        # 投手成績取得
+        pitchers = scrape_pitching_stats(team_code, fallback_games)
+        # 投手にも守備データをマージ（投手の守備成績もidf1に含まれる）
+        for p in pitchers:
+            f = fielding.get(normalize_name(p['player_name']))
+            if f:
+                p['putouts'] = f['putouts']
+                p['assists'] = f['assists']
+                p['errors'] = f['errors']
+                
+        all_stats.extend(pitchers)
         time.sleep(0.5)
 
     database.save_season_stats(all_stats)

@@ -11,6 +11,13 @@ const BATTING_CATEGORIES = [
   { id: 'hits', label: '安打', format: (v) => v, unit: '本' },
   { id: 'rbi', label: '打点', format: (v) => v, unit: '点' },
   { id: 'stolen_bases', label: '盗塁', format: (v) => v, unit: '個' },
+  { id: 'triples', label: '三塁打', format: (v) => v, unit: '本' },
+];
+
+const FIELDING_CATEGORIES = [
+  { id: 'putouts', label: '刺殺', format: (v) => v, unit: '' },
+  { id: 'assists', label: '補殺', format: (v) => v, unit: '' },
+  { id: 'errors', label: '失策', format: (v) => v, unit: '', inverse: true },
 ];
 
 const PITCHING_CATEGORIES = [
@@ -129,6 +136,15 @@ const SeasonRankings = () => {
           <div className="category-scroll">
             {PITCHING_CATEGORIES.map(cat => (
               <RankingTable key={cat.id} category={cat} players={getRankings(cat, 'pitching')} />
+            ))}
+          </div>
+        </section>
+
+        <section style={{ marginTop: '24px' }}>
+          <h3 className="section-title"><Award size={18} color="#10B981" /> 守備部門ランキング</h3>
+          <div className="category-scroll">
+            {FIELDING_CATEGORIES.map(cat => (
+              <RankingTable key={cat.id} category={cat} players={getRankings(cat, 'batting')} />
             ))}
           </div>
         </section>

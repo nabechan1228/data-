@@ -32,6 +32,17 @@ def init_db():
             era REAL,
             defense INTEGER,
             speed INTEGER,
+            putouts INTEGER,
+            assists INTEGER,
+            errors INTEGER,
+            triples INTEGER,
+            stolen_base_caught INTEGER,
+            perf_area INTEGER,
+            pot_area INTEGER,
+            convergence_rate REAL,
+            is_unbalanced BOOLEAN,
+            perf_axes_json TEXT,
+            pot_axes_json TEXT,
             image_url TEXT
         )
     ''')
@@ -61,6 +72,11 @@ def init_db():
             saves             INTEGER,
             holds             INTEGER,
             strikeouts        INTEGER,
+            putouts           INTEGER,
+            assists           INTEGER,
+            errors            INTEGER,
+            triples           INTEGER,
+            stolen_base_caught INTEGER,
             last_updated      TEXT,
             UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
         )
@@ -97,6 +113,11 @@ def ensure_stats_table():
             saves             INTEGER,
             holds             INTEGER,
             strikeouts        INTEGER,
+            putouts           INTEGER,
+            assists           INTEGER,
+            errors            INTEGER,
+            triples           INTEGER,
+            stolen_base_caught INTEGER,
             last_updated      TEXT,
             UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
         )
@@ -111,7 +132,12 @@ def ensure_stats_table():
         ("plate_appearances", "INTEGER"),
         ("innings_pitched", "REAL"),
         ("team_games", "INTEGER"),
-        ("ops", "REAL")
+        ("ops", "REAL"),
+        ("putouts", "INTEGER"),
+        ("assists", "INTEGER"),
+        ("errors", "INTEGER"),
+        ("triples", "INTEGER"),
+        ("stolen_base_caught", "INTEGER")
     ]
     
     for col_name, col_type in new_columns:
@@ -128,12 +154,14 @@ def save_players(players_data: List[Dict]):
     cursor.execute('DELETE FROM players')
     for p in players_data:
         cursor.execute('''
-            INSERT INTO players (team, name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (team, name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, putouts, assists, errors, triples, stolen_base_caught, perf_area, pot_area, convergence_rate, is_unbalanced, perf_axes_json, pot_axes_json, image_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (p.get('team'), p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
               p.get('current_performance'), p.get('potential_score'), 
               p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
-              p.get('defense'), p.get('speed'), p.get('image_url')))
+              p.get('defense'), p.get('speed'), p.get('putouts'), p.get('assists'), p.get('errors'), p.get('triples'), p.get('stolen_base_caught'),
+              p.get('perf_area'), p.get('pot_area'), p.get('convergence_rate'), p.get('is_unbalanced'),
+              p.get('perf_axes_json'), p.get('pot_axes_json'), p.get('image_url')))
     conn.commit()
     conn.close()
 
@@ -147,15 +175,15 @@ def save_season_stats(stats_list: List[Dict]):
             INSERT OR REPLACE INTO season_stats_2026
             (player_name, team, league, stat_type, games, plate_appearances, innings_pitched, team_games,
              batting_avg, hits, home_runs, rbi, stolen_bases, on_base_pct, slg_pct, ops,
-             era, wins, losses, saves, holds, strikeouts, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             era, wins, losses, saves, holds, strikeouts, putouts, assists, errors, triples, stolen_base_caught, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             s.get('player_name'), s.get('team'), s.get('league'), s.get('stat_type'),
             s.get('games'), s.get('plate_appearances'), s.get('innings_pitched'), s.get('team_games'),
             s.get('batting_avg'), s.get('hits'), s.get('home_runs'),
             s.get('rbi'), s.get('stolen_bases'), s.get('on_base_pct'), s.get('slg_pct'), s.get('ops'),
             s.get('era'), s.get('wins'), s.get('losses'), s.get('saves'),
-            s.get('holds'), s.get('strikeouts'), now
+            s.get('holds'), s.get('strikeouts'), s.get('putouts'), s.get('assists'), s.get('errors'), s.get('triples'), s.get('stolen_base_caught'), now
         ))
     conn.commit()
     conn.close()
@@ -200,6 +228,7 @@ def get_player_season_stats(player_name: str) -> List[Dict]:
     cursor.execute('''
         SELECT * FROM season_stats_2026
         WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ?
+        ORDER BY (CASE WHEN ops IS NOT NULL THEN 1 ELSE 0 END) DESC, games DESC
     ''', (f'%{name_norm}%',))
     rows = cursor.fetchall()
     conn.close()

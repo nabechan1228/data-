@@ -83,8 +83,8 @@ function App() {
       return LEAGUE_TEAMS[filterLeague].includes(p.team);
     })
     .filter(p => filterTeam === '全球団' || p.team === filterTeam)
-    .filter(p => filterPosition === '全員' || p.position.includes(filterPosition))
-    .filter(p => p.name.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
+    .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
+    .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
     .sort((a, b) => sortByPotential ? b.potential_score - a.potential_score : 0)
 
   const handlePlayerClick = (player) => {

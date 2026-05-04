@@ -3,10 +3,11 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import database
 import potential_engine
+import stats_scraper
 import time
 import re
 
-def scrape_real_data():
+def scrape_real_data(target_team_code=None):
     base_url = "https://npb.jp"
     
     teams_dict = {
@@ -27,6 +28,8 @@ def scrape_real_data():
     players = []
     
     for team_code, team_name in teams_dict.items():
+        if target_team_code and team_code != target_team_code:
+            continue
         roster_url = f"{base_url}/bis/teams/rst_{team_code}.html"
         
         try:
@@ -79,74 +82,45 @@ def scrape_real_data():
                     import random
                     random.seed(player_name)
                     
-                    # --- 守備・走力の設定 ---
-                    defense = random.randint(40, 70)
-                    speed = random.randint(40, 75)
+                    # --- 実データの取得（season_stats_2026テーブルから） ---
+                    stats = database.get_player_season_stats(player_name)
                     
-                    # スター選手などの特例補正
+                    # デフォルト値
+                    batting_avg = 0.0
+                    home_runs = 0
+                    era = None
+                    putouts = 0
+                    assists = 0
+                    errors = 0
+                    triples = 0
+                    stolen_bases = 0
+                    stolen_base_caught = 0
+                    games = 0
+                    
+                    if stats:
+                        # 打撃成績または投手成績の最新（あるいは合計）を使用
+                        s = stats[0] # 一旦最初のレコードを使用
+                        batting_avg = s.get('batting_avg') or 0.0
+                        home_runs = s.get('home_runs') or 0
+                        era = s.get('era')
+                        putouts = s.get('putouts') or 0
+                        assists = s.get('assists') or 0
+                        errors = s.get('errors') or 0
+                        triples = s.get('triples') or 0
+                        stolen_bases = s.get('stolen_bases') or 0
+                        stolen_base_caught = s.get('stolen_base_caught') or 0
+                        games = s.get('games') or 0
+                    
+                    # 特例補正（スター選手等、データが少ない場合の救済措置）
                     overrides = {
-                        '小園　海斗': {'batting_avg': 0.286, 'home_runs': 2, 'defense': 85, 'speed': 85},
-                        '菊池　涼介': {'defense': 99, 'speed': 70, 'batting_avg': 0.240, 'home_runs': 9},
-                        '矢野　雅哉': {'defense': 98, 'speed': 85, 'batting_avg': 0.260},
-                        '秋山　翔吾': {'batting_avg': 0.289, 'defense': 85, 'speed': 75},
-                        '坂倉　将吾': {'batting_avg': 0.279, 'home_runs': 12, 'defense': 70},
-                        '大瀬良　大地': {'era': 1.86, 'defense': 60},
-                        '森下　暢仁': {'era': 2.50, 'defense': 70},
-                        '栗林　良吏': {'era': 1.96},
-                        '源田　壮亮': {'defense': 99, 'speed': 80, 'batting_avg': 0.250},
-                        '辰己　涼介': {'defense': 98, 'speed': 85, 'batting_avg': 0.270},
+                        '菊池 涼介': {'putouts': 250, 'assists': 450}, 
+                        '源田 壮亮': {'putouts': 200, 'assists': 480},
                     }
-                    
-                    if '投手' in position:
-                        era = round(random.uniform(2.00, 5.50), 2)
-                        home_runs = 0
-                        batting_avg = 0.0
-                    else:
-                        era = None
-                        home_runs = random.randint(0, 15)
-                        batting_avg = round(random.uniform(0.200, 0.280), 3)
-                        
-                    # 実データスクレイピング
-                    try:
-                        tables = p_soup.find_all('table')
-                        for t in tables:
-                            headers = [th.text.strip() for th in t.find_all('th')]
-                            if len(headers) > 10 and ('打率' in headers or '防御率' in headers):
-                                rows = t.find_all('tr')
-                                # 「通算」ではない最後の行（最新シーズン）を取得
-                                valid_rows = [r for r in rows if r.find('td') and '通' not in r.find_all('td')[0].text]
-                                if valid_rows:
-                                    last_row = valid_rows[-1]
-                                    tds = last_row.find_all('td')
-                                    if len(tds) == len(headers) or len(tds) == len(headers) - 1:
-                                        if '投手' in position and '防御率' in headers:
-                                            idx = headers.index('防御率')
-                                            val = tds[idx - (len(headers)-len(tds))].text.strip()
-                                            if val and val != '-' and val != 'nan':
-                                                era = float(val)
-                                        elif ('野手' in position or '捕手' in position):
-                                            if '打率' in headers:
-                                                idx = headers.index('打率')
-                                                val = tds[idx - (len(headers)-len(tds))].text.strip()
-                                                if val and val != '-' and val != 'nan':
-                                                    batting_avg = float(val)
-                                            if '本塁打' in headers:
-                                                idx = headers.index('本塁打')
-                                                val = tds[idx - (len(headers)-len(tds))].text.strip()
-                                                if val and val != '-' and val != 'nan':
-                                                    home_runs = int(val)
-                                break
-                    except Exception as e:
-                        pass
-                        
                     if player_name in overrides:
                         for k, v in overrides[player_name].items():
-                            if k == 'batting_avg': batting_avg = v
-                            elif k == 'home_runs': home_runs = v
-                            elif k == 'era': era = v
-                            elif k == 'defense': defense = v
-                            elif k == 'speed': speed = v
-                                    
+                            if k == 'putouts': putouts = v
+                            elif k == 'assists': assists = v
+
                     player_data = {
                         "team": team_name,
                         "name": player_name,
@@ -156,24 +130,107 @@ def scrape_real_data():
                         "batting_avg": batting_avg,
                         "home_runs": home_runs,
                         "era": era,
-                        "defense": defense,
-                        "speed": speed,
+                        "putouts": putouts,
+                        "assists": assists,
+                        "errors": errors,
+                        "triples": triples,
+                        "stolen_base_caught": stolen_base_caught,
                         "image_url": f"https://placehold.co/150x150/FF0000/FFFFFF?text={i}"
                     }
                     
+                    # 守備・走力スコアの算出
+                    defense_stats = {
+                        "put_outs": putouts, 
+                        "assists": assists, 
+                        "games": games,
+                        "pos": position
+                    }
+                    sb_rate = stolen_bases / (stolen_bases + stolen_base_caught) if (stolen_bases + stolen_base_caught) > 0 else 0.0
+                    speed_stats = {"stolen_bases": stolen_bases, "triples": triples, "success_rate": sb_rate}
+                    
+                    # エンジンによる算出
+                    farm_stats = None 
+                    
                     player_data['current_performance'] = potential_engine.calculate_current_performance(
-                        batting_avg=batting_avg, 
+                        batting_avg=batting_avg if games > 0 else None, 
                         home_runs=home_runs, 
                         era=era,
-                        defense=defense,
-                        speed=speed
+                        defense_stats=defense_stats,
+                        speed_stats=speed_stats,
+                        farm_stats=farm_stats
                     )
+                    
+                    sub = potential_engine.calculate_subscores(
+                        batting_avg=batting_avg,
+                        home_runs=home_runs,
+                        era=era,
+                        defense_stats=defense_stats,
+                        speed_stats=speed_stats
+                    )
+                    player_data['defense'] = int(sub['defense'])
+                    player_data['speed'] = int(sub['speed'])
+                    
                     player_data['potential_score'] = potential_engine.calculate_potential(
                         age=age, 
                         years_in_pro=years_in_pro, 
                         current_performance=player_data['current_performance'], 
-                        position=position
+                        position=position,
+                        speed_score=player_data['speed']
                     )
+
+                    import json
+                    # ポテンシャル面積と実績面積の計算（5軸: パワー/球威, ミート/制球, スピード/スタミナ, 守備/変化球, 安定感）
+                    if not era:
+                        # 野手
+                        perf_axes = [
+                            min(100, (batting_avg or 0) * 300 + 20),
+                            min(100, (home_runs or 0) * 5 + 35),
+                            sub['speed'],
+                            sub['defense'],
+                            player_data['current_performance']
+                        ]
+                        # ポテンシャル軸を個別に動かして個性を出す
+                        pot_axes = [
+                            min(100, player_data['potential_score'] * 1.1), # 打撃ポテンシャル
+                            min(100, player_data['potential_score'] * 1.05), # 長打ポテンシャル
+                            max(60, sub['speed'] + (30 - age//2)), # 走力ポテンシャル（年齢で減衰）
+                            max(65, sub['defense'] + 10), # 守備ポテンシャル
+                            max(70, player_data['current_performance'] + 15) # 安定感ポテンシャル
+                        ]
+                    else:
+                        # 投手
+                        # 簡易的なK/9計算（statsがあればそれを使うが、ここではplayer_dataベース）
+                        k9_est = 7.5 + (100 - (era or 4.0)*15) / 10
+                        perf_axes = [
+                            min(100, k9_est * 8),
+                            max(0, 100 - (era or 4.0) * 12),
+                            50 + (player_data['current_performance'] / 4),
+                            sub['defense'],
+                            player_data['current_performance']
+                        ]
+                        pot_axes = [
+                            min(100, player_data['potential_score'] * 1.15), # 球威ポテンシャル
+                            min(100, player_data['potential_score'] * 1.1),  # 制球ポテンシャル
+                            max(60, 100 - age), # スタミナポテンシャル
+                            max(70, sub['defense'] + 20), # 変化球・守備
+                            max(75, player_data['current_performance'] + 10)
+                        ]
+                    
+                    perf_axes = [max(0, min(100, x)) for x in perf_axes]
+                    pot_axes = [max(0, min(100, x)) for x in pot_axes]
+                    
+                    perf_area = potential_engine.calculate_chart_area(perf_axes)
+                    pot_area = potential_engine.calculate_chart_area(pot_axes)
+                    
+                    player_data['perf_area'] = int(perf_area)
+                    player_data['pot_area'] = int(pot_area)
+                    player_data['convergence_rate'] = round((perf_area / pot_area * 100), 1) if pot_area > 0 else 0
+                    
+                    player_data['perf_axes_json'] = json.dumps(perf_axes)
+                    player_data['pot_axes_json'] = json.dumps(pot_axes)
+                    
+                    avg_others = sum(perf_axes[:2] + [perf_axes[4]]) / 3
+                    player_data['is_unbalanced'] = sub['defense'] > avg_others + 20 or sub['speed'] > avg_others + 20
                     
                     players.append(player_data)
                     
@@ -188,6 +245,11 @@ def scrape_real_data():
     return players
 
 def main():
+    print("Starting full data update...")
+    # 1. 統計データの最新化
+    stats_scraper.scrape_all_stats()
+    
+    # 2. 選手マスターデータの更新（統計データを参照して計算）
     database.init_db()
     players = scrape_real_data()
     database.save_players(players)

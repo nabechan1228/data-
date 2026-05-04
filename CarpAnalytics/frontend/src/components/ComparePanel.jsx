@@ -4,8 +4,8 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 const ComparePanel = ({ playerA, playerB, onClose }) => {
   if (!playerA || !playerB) return null;
 
-  const isPitcherA = playerA.position.includes('投手');
-  const isPitcherB = playerB.position.includes('投手');
+  const isPitcherA = playerA.position?.includes('投手');
+  const isPitcherB = playerB.position?.includes('投手');
 
   // 両者を同じ軸で比較するため、軸は混合（投手がいる場合は投手軸を優先）
   const bothPitchers = isPitcherA && isPitcherB;
@@ -17,9 +17,15 @@ const ComparePanel = ({ playerA, playerB, onClose }) => {
         { subject: '球威',
           A: playerA.era ? Math.max(0, 100 - playerA.era * 15) : 50,
           B: playerB.era ? Math.max(0, 100 - playerB.era * 15) : 50 },
-        { subject: 'コントロール', A: 60, B: 65 },
-        { subject: 'スタミナ',    A: 55, B: 60 },
-        { subject: '変化球',      A: 70, B: 68 },
+        { subject: 'コントロール', 
+          A: Math.max(0, 100 - (playerA.era || 4.0) * 12), 
+          B: Math.max(0, 100 - (playerB.era || 4.0) * 12) },
+        { subject: 'スタミナ',    
+          A: playerA.current_performance * 0.8 + 10, 
+          B: playerB.current_performance * 0.8 + 10 },
+        { subject: '変化球',      
+          A: 70 + (playerA.years_in_pro > 5 ? 5 : 0), 
+          B: 70 + (playerB.years_in_pro > 5 ? 5 : 0) },
         { subject: '安定感',
           A: playerA.current_performance,
           B: playerB.current_performance },
