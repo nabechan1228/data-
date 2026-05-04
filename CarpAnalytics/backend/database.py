@@ -46,7 +46,10 @@ def init_db():
             fielding_json TEXT,
             farm_stats_json TEXT,
             is_awakened BOOLEAN,
-            image_url TEXT
+            image_url TEXT,
+            similarity_name TEXT,
+            similarity_score REAL,
+            ghost_axes_json TEXT
         )
     ''')
     # 今季成績テーブル（playersと分離して毎日軽量更新）
@@ -159,14 +162,21 @@ def save_players(players_data: List[Dict]):
     cursor.execute('DELETE FROM players')
     for p in players_data:
         cursor.execute('''
-            INSERT INTO players (team, name, position, age, years_in_pro, current_performance, potential_score, batting_avg, home_runs, era, defense, speed, putouts, assists, errors, triples, stolen_base_caught, perf_area, pot_area, convergence_rate, is_unbalanced, perf_axes_json, pot_axes_json, fielding_json, farm_stats_json, is_awakened, image_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO players (
+                team, name, position, age, years_in_pro, current_performance, potential_score, 
+                batting_avg, home_runs, era, defense, speed, putouts, assists, errors, triples, 
+                stolen_base_caught, perf_area, pot_area, convergence_rate, is_unbalanced, 
+                perf_axes_json, pot_axes_json, fielding_json, farm_stats_json, is_awakened, 
+                image_url, similarity_name, similarity_score, ghost_axes_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (p.get('team'), p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
               p.get('current_performance'), p.get('potential_score'), 
               p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
               p.get('defense'), p.get('speed'), p.get('putouts'), p.get('assists'), p.get('errors'), p.get('triples'), p.get('stolen_base_caught'),
               p.get('perf_area'), p.get('pot_area'), p.get('convergence_rate'), p.get('is_unbalanced'),
-              p.get('perf_axes_json'), p.get('pot_axes_json'), p.get('fielding_json'), p.get('farm_stats_json'), p.get('is_awakened'), p.get('image_url')))
+              p.get('perf_axes_json'), p.get('pot_axes_json'), p.get('fielding_json'), p.get('farm_stats_json'), p.get('is_awakened'), p.get('image_url'),
+              p.get('similarity_name'), p.get('similarity_score'), p.get('ghost_axes_json')))
     conn.commit()
     conn.close()
 

@@ -51,8 +51,8 @@ const PlayerCard = ({ player, seasonStats }) => {
     ];
 
     if (showGhost) {
-      const ghostData = [55, 45, 60, 50, 40];
-      return baseData.map((d, idx) => ({ ...d, ghost: ghostData[idx] }));
+      const ghostAxes = player.ghost_axes_json ? JSON.parse(player.ghost_axes_json) : [50, 50, 50, 50, 50];
+      return baseData.map((d, idx) => ({ ...d, ghost: ghostAxes[idx] }));
     }
     return baseData;
   }, [player, situationalMode, showGhost, isPitcher]);

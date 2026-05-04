@@ -2,20 +2,51 @@ import math
 
 # ロールモデル（レジェンド）の定義
 LEGENDS = {
-    'イチロー': [95, 60, 98, 99, 95],
-    '大谷翔平': [92, 99, 85, 70, 90],
-    '王貞治': [85, 99, 50, 75, 99],
-    '山本由伸': [98, 95, 70, 85, 95], # 投手用: 球威, 制球, スタミナ, 守備/変化, 安定感
+    'イチロー': [95, 60, 98, 99, 95], # パワー, ミート, スピード, 守備, 安定感
+    '大谷翔平': [99, 92, 85, 70, 90],
+    '王貞治':   [99, 85, 50, 75, 99],
+    '村上宗隆': [98, 80, 45, 65, 85],
+    '近本光司': [65, 85, 98, 95, 90],
+    '山本由伸': [98, 95, 70, 85, 95], # 球威, 制球, スタミナ, 守備/変化, 安定感
+    'ダルビッシュ': [95, 90, 80, 95, 90],
+    '菅野智之': [85, 99, 85, 90, 95],
 }
 
 def calculate_cosine_similarity(v1, v2):
     """2つのベクトルのコサイン類似度を計算 (0.0 - 1.0)"""
-    if not v1 or not v2: return 0.0
+    if not v1 or not v2 or len(v1) != len(v2): return 0.0
     dot_product = sum(a * b for a, b in zip(v1, v2))
     mag1 = math.sqrt(sum(a**2 for a in v1))
     mag2 = math.sqrt(sum(b**2 for b in v2))
     if mag1 == 0 or mag2 == 0: return 0.0
     return dot_product / (mag1 * mag2)
+
+def find_best_role_model(axes, is_pitcher):
+    """最も類似したレジェンドを選出する"""
+    best_score = -1.0
+    best_name = "未定義"
+    best_axes = [50, 50, 50, 50, 50]
+    
+    # 候補のフィルタリング
+    candidates = {}
+    if is_pitcher:
+        # 投手レジェンド
+        candidates = {k: v for k, v in LEGENDS.items() if k in ['山本由伸', 'ダルビッシュ', '菅野智之']}
+    else:
+        # 野手レジェンド
+        candidates = {k: v for k, v in LEGENDS.items() if k in ['イチロー', '王貞治', '大谷翔平', '村上宗隆', '近本光司']}
+    
+    if not candidates:
+        candidates = LEGENDS # フォールバック
+        
+    for name, legend_axes in candidates.items():
+        score = calculate_cosine_similarity(axes, legend_axes)
+        if score > best_score:
+            best_score = score
+            best_name = name
+            best_axes = legend_axes
+            
+    return best_name, round(best_score * 100, 1), best_axes
 
 def calculate_chart_area(values):
     """

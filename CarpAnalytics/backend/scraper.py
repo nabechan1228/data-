@@ -187,8 +187,7 @@ def scrape_real_data(target_team_code=None):
                     potential_engine.calculate_subscores(f_positions)['defense'],
                     current_perf
                 ]
-                sim_name = 'Ichiro'
-                sim_score = potential_engine.calculate_cosine_similarity(perf_axes, potential_engine.LEGENDS.get('\u30a4\u30c1\u30ed\u30fc', [90,90,90,90,90]))
+                sim_name, sim_score, ghost_axes = potential_engine.find_best_role_model(perf_axes, is_pitcher=False)
             else:
                 ip = pitching['innings_pitched'] if pitching else 0
                 so = pitching['strikeouts'] if pitching else 0
@@ -210,8 +209,7 @@ def scrape_real_data(target_team_code=None):
                     max(10, min(100, breaking)), 
                     current_perf
                 ]
-                sim_name = 'Yamamoto'
-                sim_score = potential_engine.calculate_cosine_similarity(perf_axes, potential_engine.LEGENDS.get('\u5c71\u672c\u7531\u4f38', [90,90,90,90,90]))
+                sim_name, sim_score, ghost_axes = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
             
             perf_axes = [max(10, min(100, x + random.uniform(-2, 2))) for x in perf_axes]
             pot_axes = [min(100, pot_score * (0.8 + 0.05*i)) for i in range(5)]
@@ -228,7 +226,8 @@ def scrape_real_data(target_team_code=None):
                 'convergence_rate': round((perf_area / pot_area * 100), 1) if pot_area > 0 else 0,
                 'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
                 'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
-                'similarity_name': sim_name, 'similarity_score': round(sim_score * 100, 1),
+                'similarity_name': sim_name, 'similarity_score': sim_score,
+                'ghost_axes_json': json.dumps(ghost_axes),
                 'is_awakened': (perf_area / pot_area) > 0.85 if pot_area > 0 else False,
                 'image_url': f'https://api.dicebear.com/7.x/avataaars/svg?seed={player_name}'
             }
