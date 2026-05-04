@@ -33,6 +33,7 @@ const SeasonRankings = () => {
   const [loading, setLoading] = useState(true);
   const [league, setLeague] = useState('Central'); // 'Central' or 'Pacific'
   const [onlyQualified, setOnlyQualified] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState('');
 
   useEffect(() => {
     fetchStats();
@@ -44,6 +45,9 @@ const SeasonRankings = () => {
       .then(res => {
         if (res.data.status === 'success') {
           setStats(res.data.data);
+          if (res.data.last_updated) {
+            setLastUpdated(new Date(res.data.last_updated).toLocaleString('ja-JP'));
+          }
         }
       })
       .catch(err => console.error(err))
@@ -106,6 +110,11 @@ const SeasonRankings = () => {
             className={`filter-btn ${league === 'Pacific' ? 'active' : ''}`}
             onClick={() => setLeague('Pacific')}
           >パ・リーグ</button>
+          {lastUpdated && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
+              最終更新: {lastUpdated}
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

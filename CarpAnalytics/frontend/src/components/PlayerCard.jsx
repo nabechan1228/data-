@@ -173,7 +173,11 @@ const PlayerCard = ({ player, seasonStats }) => {
               <div className="stat-item"><span>盗塁</span> <strong>{batting?.stolen_bases || 0}</strong></div>
             </div>
           )}
-          <div className="update-time">Last Updated: {player.last_updated?.split('T')[0]}</div>
+          {hasStats && seasonStats[0]?.last_updated && (
+            <div className="update-time" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '12px' }}>
+              最終更新: {new Date(seasonStats[0].last_updated).toLocaleString('ja-JP')}
+            </div>
+          )}
         </div>
       )}
     </div>
