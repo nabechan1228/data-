@@ -47,6 +47,7 @@ function App() {
   const [updateMsg, setUpdateMsg] = useState(null)
   const [view, setView] = useState('matrix') // 'matrix' or 'rankings'
   const [filterLeague, setFilterLeague] = useState('Both') // 'Central', 'Pacific', 'Both'
+  const [selectedPlayerSeasonStats, setSelectedPlayerSeasonStats] = useState([])
 
   const LEAGUE_TEAMS = {
     'Central': ['広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ', '中日ドラゴンズ', '東京ヤクルトスワローズ'],
@@ -95,6 +96,18 @@ function App() {
       setSelectedPlayer(player)
     }
   }
+
+  useEffect(() => {
+    if (selectedPlayer) {
+      axios.get(`${API_URL}/api/season-stats/player/${selectedPlayer.name}`)
+        .then(res => {
+          if (res.data.status === 'success') {
+            setSelectedPlayerSeasonStats(res.data.data)
+          }
+        })
+        .catch(err => console.error('Failed to fetch player stats', err))
+    }
+  }, [selectedPlayer])
 
   const handleUpdateData = async () => {
     if (!window.confirm('選手データをNPBサイトから再取得します。数分かかります。よろしいですか？')) return
@@ -286,7 +299,7 @@ function App() {
         <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="panel">
             {selectedPlayer ? (
-              <PlayerCard player={selectedPlayer} />
+              <PlayerCard player={selectedPlayer} seasonStats={selectedPlayerSeasonStats} />
             ) : (
               <p style={{ color: 'var(--text-muted)' }}>選手を選択してください</p>
             )}

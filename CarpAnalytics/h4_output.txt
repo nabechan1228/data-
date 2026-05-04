@@ -1,0 +1,3 @@
+Encoding used: shift_jis
+h4: '蛟倶ｺｺ螳亥ｙ謌千ｸｾ�ｼ医そ繝ｳ繝医Λ繝ｫ繝ｻ繝ｪ繝ｼ繧ｰ�ｼ�' class: ['central-bg']
+h4: '2026蟷ｴ 逅�蝗｣蛻･蛟倶ｺｺ謌千ｸｾ' class: None

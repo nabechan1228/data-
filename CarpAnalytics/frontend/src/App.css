@@ -66,6 +66,53 @@ body {
   gap: 0.5rem;
 }
 
+.awakening-card {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255, 215, 0, 0.8);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+.awakening-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    transparent, 
+    rgba(255, 215, 0, 0.3), 
+    transparent 30%
+  );
+  animation: rotate-glow 4s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+@keyframes rotate-glow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.awakening-label {
+  background: linear-gradient(90deg, #ffd700, #ff8c00);
+  color: #000;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  animation: pulse-gold 2s infinite;
+}
+
+@keyframes pulse-gold {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(255, 215, 0, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); }
+}
+
 /* Player Card Styles */
 .player-card {
   display: flex;

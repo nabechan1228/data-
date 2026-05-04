@@ -1,55 +1,28 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import React, { useMemo, useState } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
-
-const PlayerCard = ({ player }) => {
+const PlayerCard = ({ player, seasonStats }) => {
   const [activeTab, setActiveTab] = useState('profile');
-  const [seasonStats, setSeasonStats] = useState(null);
-  const [statsLoading, setStatsLoading] = useState(false);
   const [situationalMode, setSituationalMode] = useState(false);
   const [showGhost, setShowGhost] = useState(false);
 
-  useEffect(() => {
-    if (!player) return;
-    setActiveTab('profile');
-    setSeasonStats(null);
-  }, [player?.id]);
-
-  const fetchSeasonStats = () => {
-    if (seasonStats !== null || statsLoading) return;
-    setStatsLoading(true);
-    const nameEncoded = encodeURIComponent(player.name?.trim() || '');
-    axios.get(`${API_URL}/api/season-stats/player/${nameEncoded}`)
-      .then(res => {
-        if (res.data.status === 'success') {
-          setSeasonStats(res.data.data);
-        }
-      })
-      .catch(() => setSeasonStats([]))
-      .finally(() => setStatsLoading(false));
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab === 'stats') fetchSeasonStats();
-  };
   if (!player) {
     return (
-      <div className="panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-        <p>左のリストから選手を選択して詳細を表示</p>
+      <div className="player-card empty">
+        <p>選手を選択してください</p>
       </div>
     );
   }
 
-  const isPitcher = player.position?.includes('投手');
+  const handleTabChange = (tab) => setActiveTab(tab);
+
+  const isPitcher = player.position === '投手' || (player.era !== null && player.era !== undefined);
 
   const radarData = useMemo(() => {
     if (!player) return [];
     const bonus = situationalMode ? 10 : 0;
     
-    // バックエンドで計算済みの軸データがある場合はそれを使用する（面積計算と同期させるため）
+    // バックエンドで計算済みの軸データがある場合はそれを使用する
     const perfAxes = player.perf_axes_json ? JSON.parse(player.perf_axes_json) : null;
     const potAxes = player.pot_axes_json ? JSON.parse(player.pot_axes_json) : null;
 
@@ -62,19 +35,19 @@ const PlayerCard = ({ player }) => {
       }));
     }
 
-    // フォールバック（旧データ用）
+    // フォールバック
     const baseData = isPitcher ? [
-      { subject: '球威', reality: (player.era ? Math.max(0, 100 - player.era * 15) : 50) + bonus, vision: player.potential_score * 0.9 },
-      { subject: '制球', reality: 60, vision: player.potential_score * 0.85 },
-      { subject: 'スタミナ', reality: 50, vision: 65 },
-      { subject: '守備/変化', reality: 70 + bonus, vision: 75 },
-      { subject: '安定感', reality: (player.current_performance || 50) + bonus, vision: 80 }
+      { subject: '球威', reality: 60 + bonus, vision: 80 },
+      { subject: '制球', reality: 60, vision: 80 },
+      { subject: 'スタミナ', reality: 50, vision: 70 },
+      { subject: '守備/変化', reality: 70, vision: 80 },
+      { subject: '安定感', reality: 60, vision: 85 }
     ] : [
-      { subject: 'パワー', reality: (player.home_runs ? Math.min(100, player.home_runs * 5 + 30) : 30) + bonus, vision: player.potential_score * 0.9 },
-      { subject: 'ミート', reality: (player.batting_avg ? Math.min(100, player.batting_avg * 300) : 40) + bonus, vision: player.potential_score * 0.85 },
-      { subject: 'スピード', reality: (player.speed || 50), vision: 70 },
-      { subject: '守備', reality: (player.defense || 60), vision: 75 },
-      { subject: '安定感', reality: (player.current_performance || 50) + bonus, vision: 80 }
+      { subject: 'パワー', reality: 60 + bonus, vision: 80 },
+      { subject: 'ミート', reality: 60 + bonus, vision: 80 },
+      { subject: 'スピード', reality: 60, vision: 75 },
+      { subject: '守備', reality: 60, vision: 75 },
+      { subject: '安定感', reality: 60, vision: 85 }
     ];
 
     if (showGhost) {
@@ -89,190 +62,122 @@ const PlayerCard = ({ player }) => {
   const hasStats = seasonStats && seasonStats.length > 0;
 
   return (
-    <div className="player-card">
-      <div className="player-image-container">
-        <img src={player.image_url} alt={player.name} className="player-image" />
+    <div className={`player-card ${player.is_awakened ? 'awakening-card' : ''}`}>
+      <div className="player-card-header">
+        <div className="player-info">
+          <div className="name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 className="player-name" style={{ margin: 0 }}>{player.name}</h2>
+            {player.is_awakened && <span className="awakening-label">Awakening</span>}
+          </div>
+          <p className="player-meta">
+            {player.team} | {player.position} | {player.age}歳 | プロ{player.years_in_pro}年目
+            {(!player.batting_avg || player.batting_avg === 0) && player.farm_stats_json && player.farm_stats_json !== '{}' && (
+              <span className="farm-badge" style={{
+                marginLeft: '8px', fontSize: '0.65rem', background: 'rgba(16,185,129,0.1)', 
+                border: '1px solid #10B981', color: '#10B981', padding: '1px 4px', borderRadius: '3px'
+              }}>2軍データ反映中</span>
+            )}
+          </p>
+        </div>
+        {hasStats && <span className="league-badge">1軍</span>}
       </div>
 
-      <h2 className="player-name">
-        {player.name}
-        {hasStats && (
-          <span style={{
-            marginLeft: '8px',
-            fontSize: '0.65rem',
-            background: 'rgba(229,0,18,0.15)',
-            border: '1px solid var(--accent-red)',
-            color: 'var(--accent-red)',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            verticalAlign: 'middle',
-          }}>1軍</span>
-        )}
-      </h2>
-      <p className="player-meta">
-        {player.team} | {player.position} | {player.age}歳 | プロ{player.years_in_pro}年目
-      </p>
+      <div className="player-image-container" style={{ textAlign: 'center', margin: '15px 0' }}>
+        <img 
+          src={player.image_url || 'https://via.placeholder.com/150'} 
+          alt={player.name} 
+          className="player-image" 
+          style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--accent-red)' }}
+        />
+      </div>
 
-      {/* タブ切り替え */}
-      <div style={{ display: 'flex', gap: '8px', margin: '12px 0 0' }}>
-        <button
-          onClick={() => handleTabChange('profile')}
-          style={{
-            padding: '5px 14px',
-            borderRadius: '6px',
-            border: activeTab === 'profile' ? '1px solid var(--accent-red)' : '1px solid var(--border-color)',
-            background: activeTab === 'profile' ? 'rgba(229,0,18,0.15)' : 'transparent',
-            color: activeTab === 'profile' ? 'var(--accent-red)' : 'var(--text-muted)',
-            cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
-          }}
-        >📊 プロフィール</button>
-        <button
-          onClick={() => handleTabChange('stats')}
-          style={{
-            padding: '5px 14px',
-            borderRadius: '6px',
-            border: activeTab === 'stats' ? '1px solid #10B981' : '1px solid var(--border-color)',
-            background: activeTab === 'stats' ? 'rgba(16,185,129,0.15)' : 'transparent',
-            color: activeTab === 'stats' ? '#10B981' : 'var(--text-muted)',
-            cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600',
-          }}
-        >🏆 今季成績</button>
+      <div className="tab-buttons" style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+        <button 
+          className={`tab-button ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => setActiveTab('profile')}
+        >📊 分析</button>
+        <button 
+          className={`tab-button ${activeTab === 'stats' ? 'active' : ''}`}
+          onClick={() => setActiveTab('stats')}
+        >🏆 成績</button>
       </div>
 
       {activeTab === 'profile' && (
-        <>
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '10px' }}>
+        <div className="profile-tab">
+          <div className="toggles" style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '10px' }}>
             <label className="toggle-label">
               <input type="checkbox" checked={situationalMode} onChange={() => setSituationalMode(!situationalMode)} />
-              🔥 得点圏モード
+              🔥 覚醒(得点圏)
             </label>
             <label className="toggle-label">
               <input type="checkbox" checked={showGhost} onChange={() => setShowGhost(!showGhost)} />
-              👻 ロールモデル比較
+              👻 ロールモデル
             </label>
           </div>
 
-          <div className="radar-container" style={{ position: 'relative' }}>
+          <div className="radar-chart-area" style={{ height: '240px', width: '100%', position: 'relative' }}>
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
                 <PolarGrid stroke="#334155" />
-                <PolarAngleAxis dataKey="subject" tick={{ fill: '#94A3B8', fontSize: 12 }} />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: '#94A3B8', fontSize: 11 }} />
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1E293B', borderColor: '#334155', color: '#F8FAFC' }}
-                  itemStyle={{ color: '#F8FAFC' }}
-                />
-                {showGhost && (
-                  <Radar name="League Avg (Ghost)" dataKey="ghost" stroke="#475569" strokeWidth={1} fill="#475569" fillOpacity={0.1} strokeDasharray="4 4" />
-                )}
-                <Radar name="Vision (Potential)" dataKey="vision" stroke="#F59E0B" strokeWidth={3} fill="#F59E0B" fillOpacity={0.05} />
-                <Radar name="Reality (Current)" dataKey="reality" stroke="#E50012" strokeWidth={2} fill="#E50012" fillOpacity={0.55} />
+                <Tooltip />
+                {showGhost && <Radar name="Legend" dataKey="ghost" stroke="#64748b" fill="#64748b" fillOpacity={0.1} strokeDasharray="4 4" />}
+                <Radar name="Potential" dataKey="vision" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.05} strokeWidth={3} />
+                <Radar name="Current" dataKey="reality" stroke="#E50012" fill="#E50012" fillOpacity={0.6} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>
-            
-            {player.is_unbalanced && (
-              <div style={{
-                position: 'absolute', top: '10px', right: '10px',
-                background: 'rgba(59,130,246,0.2)', border: '1px solid #3B82F6',
-                color: '#60A5FA', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '20px'
-              }}>一芸特化型</div>
-            )}
+            {player.is_unbalanced && <div className="unbalanced-badge">一芸特化</div>}
           </div>
 
-          <div className="stats-grid">
-            <div className="stat-box">
-              <div className="stat-label">CURRENT PERF</div>
-              <div className="stat-value red">{Math.round(player.current_performance || 0)}</div>
-              <div className="stat-sub">面積: {player.perf_area || '-'}</div>
+          <div className="metrics-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '15px' }}>
+            <div className="metric-item">
+              <div className="label">ポテンシャル充足率</div>
+              <div className="value highlight">{player.convergence_rate || 0}%</div>
             </div>
-            <div className="stat-box">
-              <div className="stat-label">POTENTIAL CEILING</div>
-              <div className="stat-value gold">{Math.round(player.potential_score || 0)}</div>
-              <div className="stat-sub">充足率: {player.convergence_rate || '0'}%</div>
+            <div className="metric-item">
+              <div className="label">類似モデル ({player.similarity_name || 'イチロー'})</div>
+              <div className="value">{player.similarity_score || 0}%</div>
             </div>
           </div>
-        </>
+          
+          {player.fielding_json && (
+            <div className="fielding-breakdown" style={{ marginTop: '10px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>守備ポジション内訳:</div>
+              {Object.entries(JSON.parse(player.fielding_json)).map(([pos, s]) => (
+                <span key={pos} style={{ marginRight: '8px', background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: '3px' }}>
+                  {pos}({s.games}試)
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {activeTab === 'stats' && (
-        <div style={{ marginTop: '16px' }}>
-          {statsLoading && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
-              <div className="loading-spinner" style={{ margin: '0 auto 8px' }} />
-              <p>成績を読み込み中…</p>
+        <div className="stats-tab">
+          {isPitcher ? (
+            <div className="stats-list">
+              <div className="stat-item"><span>防御率</span> <strong>{player.era || '---'}</strong></div>
+              <div className="stat-item"><span>勝利</span> <strong>{pitching?.wins || 0}</strong></div>
+              <div className="stat-item"><span>敗戦</span> <strong>{pitching?.losses || 0}</strong></div>
+              <div className="stat-item"><span>奪三振</span> <strong>{pitching?.strikeouts || 0}</strong></div>
+              <div className="stat-item"><span>投球回</span> <strong>{pitching?.innings_pitched || 0}</strong></div>
+            </div>
+          ) : (
+            <div className="stats-list">
+              <div className="stat-item"><span>打率</span> <strong>{player.batting_avg || '.000'}</strong></div>
+              <div className="stat-item"><span>本塁打</span> <strong>{player.home_runs || 0}</strong></div>
+              <div className="stat-item"><span>OPS</span> <strong>{batting?.ops || '---'}</strong></div>
+              <div className="stat-item"><span>打点</span> <strong>{batting?.rbi || 0}</strong></div>
+              <div className="stat-item"><span>盗塁</span> <strong>{batting?.stolen_bases || 0}</strong></div>
             </div>
           )}
-
-          {!statsLoading && !hasStats && (
-            <div style={{
-              textAlign: 'center', color: 'var(--text-muted)', padding: '24px',
-              border: '1px dashed var(--border-color)', borderRadius: '8px',
-            }}>
-              <p style={{ fontSize: '1.5rem', marginBottom: '8px' }}>📋</p>
-              <p>今季の1軍成績データがありません</p>
-              <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>規定打席/登板未満の可能性があります</p>
-            </div>
-          )}
-
-          {!statsLoading && batting && (
-            <SeasonStatsTable title="🏏 打撃成績 (2026)" stats={batting} type="batting" />
-          )}
-          {!statsLoading && pitching && (
-            <SeasonStatsTable title="⚾ 投手成績 (2026)" stats={pitching} type="pitching" />
-          )}
+          <div className="update-time">Last Updated: {player.last_updated?.split('T')[0]}</div>
         </div>
       )}
     </div>
   );
 };
-
-const StatRow = ({ label, value, highlight = false }) => (
-  <div style={{
-    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '7px 12px',
-    background: highlight ? 'rgba(245,158,11,0.1)' : 'rgba(15,23,42,0.5)',
-    borderRadius: '6px',
-    borderLeft: highlight ? '3px solid #F59E0B' : '3px solid transparent',
-  }}>
-    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{label}</span>
-    <span style={{
-      fontWeight: '700', fontSize: '0.95rem',
-      color: highlight ? '#F59E0B' : 'var(--text-light)',
-    }}>{value ?? '-'}</span>
-  </div>
-);
-
-const SeasonStatsTable = ({ title, stats, type }) => (
-  <div style={{ marginBottom: '16px' }}>
-    <h4 style={{ color: '#10B981', fontSize: '0.9rem', marginBottom: '10px', fontWeight: '700' }}>{title}</h4>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      {type === 'batting' ? (
-        <>
-          <StatRow label="試合" value={stats.games} />
-          <StatRow label="打席" value={stats.plate_appearances} />
-          <StatRow label="打率" value={stats.batting_avg?.toFixed(3)} highlight={stats.batting_avg >= 0.300} />
-          <StatRow label="安打" value={stats.hits} />
-          <StatRow label="本塁打" value={stats.home_runs} highlight={stats.home_runs >= 10} />
-          <StatRow label="打点" value={stats.rbi} />
-          <StatRow label="盗塁" value={stats.stolen_bases} />
-          <StatRow label="出塁率" value={stats.on_base_pct?.toFixed(3)} />
-          <StatRow label="長打率" value={stats.slg_pct?.toFixed(3)} />
-          <StatRow label="OPS" value={stats.ops?.toFixed(3)} highlight={stats.ops >= 0.850} />
-        </>
-      ) : (
-        <>
-          <StatRow label="登板" value={stats.games} />
-          <StatRow label="投球回" value={stats.innings_pitched?.toFixed(1)} />
-          <StatRow label="防御率" value={stats.era?.toFixed(2)} highlight={stats.era !== null && stats.era <= 2.50} />
-          <StatRow label="勝利" value={stats.wins} />
-          <StatRow label="敗北" value={stats.losses} />
-          <StatRow label="セーブ" value={stats.saves} highlight={stats.saves >= 10} />
-          <StatRow label="ホールド" value={stats.holds} />
-          <StatRow label="奪三振" value={stats.strikeouts} />
-        </>
-      )}
-    </div>
-  </div>
-);
 
 export default PlayerCard;

@@ -1,259 +1,247 @@
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 import database
 import potential_engine
 import stats_scraper
 import time
+import json
+import logging
+import random
+import os
 import re
+from datetime import date
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+DRAFT_CACHE_FILE = os.path.join(os.path.dirname(__file__), 'draft_cache.json')
+
+def load_draft_cache():
+    if os.path.exists(DRAFT_CACHE_FILE):
+        try:
+            with open(DRAFT_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_draft_cache(cache):
+    with open(DRAFT_CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, indent=2)
+
+def get_draft_year(player_name, player_id, session, cache):
+    if not player_id: return None
+    if player_id in cache:
+        return cache[player_id]
+        
+    logger.info(f'Fetching detail for {player_name} ({player_id})...')
+    url = f'https://npb.jp/bis/players/{player_id}.html'
+    try:
+        res = session.get(url, timeout=5)
+        res.encoding = 'utf-8'
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # 1. Look for Draft info
+        draft_label = '\u30c9\u30e9\u30d5\u30c8'
+        th = soup.find('th', string=draft_label)
+        if not th:
+             th = soup.find('th', string=lambda s: s and draft_label in s)
+        
+        if th:
+            td = th.find_next_sibling('td')
+            match = re.search(r'(\d{4})', td.text)
+            if match:
+                year = int(match.group(1))
+                cache[player_id] = year
+                return year
+                
+        # 2. Look for first year in stats table
+        first_year_td = soup.select_one('.registerStats .year')
+        if first_year_td:
+            try:
+                year = int(first_year_td.text.strip())
+                cache[player_id] = year - 1
+                return year - 1
+            except:
+                pass
+    except Exception as e:
+        logger.error(f'Error fetching detail for {player_id}: {e}')
+        
+    return None
 
 def scrape_real_data(target_team_code=None):
-    base_url = "https://npb.jp"
-    
-    teams_dict = {
-        'c': '広島東洋カープ',
-        'g': '読売ジャイアンツ',
-        't': '阪神タイガース',
-        'db': '横浜DeNAベイスターズ',
-        's': '東京ヤクルトスワローズ',
-        'd': '中日ドラゴンズ',
-        'b': 'オリックス・バファローズ',
-        'm': '千葉ロッテマリーンズ',
-        'h': '福岡ソフトバンクホークス',
-        'e': '東北楽天ゴールデンイーグルス',
-        'l': '埼玉西武ライオンズ',
-        'f': '北海道日本ハムファイターズ'
-    }
-    
-    players = []
-    
-    for team_code, team_name in teams_dict.items():
-        if target_team_code and team_code != target_team_code:
-            continue
-        roster_url = f"{base_url}/bis/teams/rst_{team_code}.html"
-        
-        try:
-            response = requests.get(roster_url)
-            response.encoding = 'utf-8'
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # 投手、捕手、内野手、外野手のセクションを特定して選手リンクを取得
-            links = soup.find_all('a', href=re.compile(r'/bis/players/\d+\.html'))
-            print(f"[{team_name}] Found {len(links)} players. Scraping data...")
-            
-            for i, a_tag in enumerate(links):
-                player_name = a_tag.text.strip().replace('\u3000', ' ')
-                player_url = base_url + a_tag['href']
-                
-                # プレイヤーごとの詳細ページを取得
-                try:
-                    # サーバー負荷軽減のため少し待機
-                    time.sleep(0.05) # 全球団取得のため少し待機時間を短縮
-                    p_res = requests.get(player_url)
-                    p_res.encoding = 'utf-8'
-                    p_soup = BeautifulSoup(p_res.text, 'html.parser')
-                    
-                    # プロフィールテキストとポジションを取得
-                    table_th = p_soup.find('th', string='ポジション')
-                    position = table_th.find_next_sibling('td').text.strip() if table_th else "不明"
-                    
-                    # 実年齢とプロ年数をテーブルから取得
-                    age = 25
-                    years_in_pro = 3
-                    
-                    birth_th = p_soup.find('th', string='生年月日')
-                    if birth_th:
-                        birth_str = birth_th.find_next_sibling('td').text.strip()
-                        match = re.search(r'(\d{4})年', birth_str)
-                        if match:
-                            age = 2026 - int(match.group(1))
-                            
-                    draft_th = p_soup.find('th', string='ドラフト')
-                    if draft_th:
-                        draft_str = draft_th.find_next_sibling('td').text.strip()
-                        match = re.search(r'(\d{4})年', draft_str)
-                        if match:
-                            years_in_pro = 2026 - int(match.group(1))
-                        else:
-                            years_in_pro = max(1, age - 22)
-                    else:
-                        years_in_pro = max(1, age - 22)
-                    
-                    import random
-                    random.seed(player_name)
-                    
-                    # --- 実データの取得（season_stats_2026テーブルから） ---
-                    stats = database.get_player_season_stats(player_name)
-                    
-                    # デフォルト値
-                    batting_avg = 0.0
-                    home_runs = 0
-                    era = None
-                    putouts = 0
-                    assists = 0
-                    errors = 0
-                    triples = 0
-                    stolen_bases = 0
-                    stolen_base_caught = 0
-                    games = 0
-                    
-                    if stats:
-                        # 打撃成績または投手成績の最新（あるいは合計）を使用
-                        s = stats[0] # 一旦最初のレコードを使用
-                        batting_avg = s.get('batting_avg') or 0.0
-                        home_runs = s.get('home_runs') or 0
-                        era = s.get('era')
-                        putouts = s.get('putouts') or 0
-                        assists = s.get('assists') or 0
-                        errors = s.get('errors') or 0
-                        triples = s.get('triples') or 0
-                        stolen_bases = s.get('stolen_bases') or 0
-                        stolen_base_caught = s.get('stolen_base_caught') or 0
-                        games = s.get('games') or 0
-                    
-                    # 特例補正（スター選手等、データが少ない場合の救済措置）
-                    overrides = {
-                        '菊池 涼介': {'putouts': 250, 'assists': 450}, 
-                        '源田 壮亮': {'putouts': 200, 'assists': 480},
-                    }
-                    if player_name in overrides:
-                        for k, v in overrides[player_name].items():
-                            if k == 'putouts': putouts = v
-                            elif k == 'assists': assists = v
-
-                    player_data = {
-                        "team": team_name,
-                        "name": player_name,
-                        "position": position,
-                        "age": age,
-                        "years_in_pro": years_in_pro,
-                        "batting_avg": batting_avg,
-                        "home_runs": home_runs,
-                        "era": era,
-                        "putouts": putouts,
-                        "assists": assists,
-                        "errors": errors,
-                        "triples": triples,
-                        "stolen_base_caught": stolen_base_caught,
-                        "image_url": f"https://placehold.co/150x150/FF0000/FFFFFF?text={i}"
-                    }
-                    
-                    # 守備・走力スコアの算出
-                    defense_stats = {
-                        "put_outs": putouts, 
-                        "assists": assists, 
-                        "games": games,
-                        "pos": position
-                    }
-                    sb_rate = stolen_bases / (stolen_bases + stolen_base_caught) if (stolen_bases + stolen_base_caught) > 0 else 0.0
-                    speed_stats = {"stolen_bases": stolen_bases, "triples": triples, "success_rate": sb_rate}
-                    
-                    # エンジンによる算出
-                    farm_stats = None 
-                    
-                    player_data['current_performance'] = potential_engine.calculate_current_performance(
-                        batting_avg=batting_avg if games > 0 else None, 
-                        home_runs=home_runs, 
-                        era=era,
-                        defense_stats=defense_stats,
-                        speed_stats=speed_stats,
-                        farm_stats=farm_stats
-                    )
-                    
-                    sub = potential_engine.calculate_subscores(
-                        batting_avg=batting_avg,
-                        home_runs=home_runs,
-                        era=era,
-                        defense_stats=defense_stats,
-                        speed_stats=speed_stats
-                    )
-                    player_data['defense'] = int(sub['defense'])
-                    player_data['speed'] = int(sub['speed'])
-                    
-                    player_data['potential_score'] = potential_engine.calculate_potential(
-                        age=age, 
-                        years_in_pro=years_in_pro, 
-                        current_performance=player_data['current_performance'], 
-                        position=position,
-                        speed_score=player_data['speed']
-                    )
-
-                    import json
-                    # ポテンシャル面積と実績面積の計算（5軸: パワー/球威, ミート/制球, スピード/スタミナ, 守備/変化球, 安定感）
-                    if not era:
-                        # 野手
-                        perf_axes = [
-                            min(100, (batting_avg or 0) * 300 + 20),
-                            min(100, (home_runs or 0) * 5 + 35),
-                            sub['speed'],
-                            sub['defense'],
-                            player_data['current_performance']
-                        ]
-                        # ポテンシャル軸を個別に動かして個性を出す
-                        pot_axes = [
-                            min(100, player_data['potential_score'] * 1.1), # 打撃ポテンシャル
-                            min(100, player_data['potential_score'] * 1.05), # 長打ポテンシャル
-                            max(60, sub['speed'] + (30 - age//2)), # 走力ポテンシャル（年齢で減衰）
-                            max(65, sub['defense'] + 10), # 守備ポテンシャル
-                            max(70, player_data['current_performance'] + 15) # 安定感ポテンシャル
-                        ]
-                    else:
-                        # 投手
-                        # 簡易的なK/9計算（statsがあればそれを使うが、ここではplayer_dataベース）
-                        k9_est = 7.5 + (100 - (era or 4.0)*15) / 10
-                        perf_axes = [
-                            min(100, k9_est * 8),
-                            max(0, 100 - (era or 4.0) * 12),
-                            50 + (player_data['current_performance'] / 4),
-                            sub['defense'],
-                            player_data['current_performance']
-                        ]
-                        pot_axes = [
-                            min(100, player_data['potential_score'] * 1.15), # 球威ポテンシャル
-                            min(100, player_data['potential_score'] * 1.1),  # 制球ポテンシャル
-                            max(60, 100 - age), # スタミナポテンシャル
-                            max(70, sub['defense'] + 20), # 変化球・守備
-                            max(75, player_data['current_performance'] + 10)
-                        ]
-                    
-                    perf_axes = [max(0, min(100, x)) for x in perf_axes]
-                    pot_axes = [max(0, min(100, x)) for x in pot_axes]
-                    
-                    perf_area = potential_engine.calculate_chart_area(perf_axes)
-                    pot_area = potential_engine.calculate_chart_area(pot_axes)
-                    
-                    player_data['perf_area'] = int(perf_area)
-                    player_data['pot_area'] = int(pot_area)
-                    player_data['convergence_rate'] = round((perf_area / pot_area * 100), 1) if pot_area > 0 else 0
-                    
-                    player_data['perf_axes_json'] = json.dumps(perf_axes)
-                    player_data['pot_axes_json'] = json.dumps(pot_axes)
-                    
-                    avg_others = sum(perf_axes[:2] + [perf_axes[4]]) / 3
-                    player_data['is_unbalanced'] = sub['defense'] > avg_others + 20 or sub['speed'] > avg_others + 20
-                    
-                    players.append(player_data)
-                    
-                    if i > 0 and i % 20 == 0:
-                        print(f"  ...scraped {i} players in {team_name}...")
-                        
-                except Exception as e:
-                    print(f"Error scraping {player_name}: {type(e).__name__} {str(e)[:50]}")
-        except Exception as e:
-            print(f"Error accessing {team_name} roster: {type(e).__name__} {str(e)[:50]}")
-            
-    return players
-
-def main():
-    print("Starting full data update...")
-    # 1. 統計データの最新化
-    stats_scraper.scrape_all_stats()
-    
-    # 2. 選手マスターデータの更新（統計データを参照して計算）
     database.init_db()
-    players = scrape_real_data()
-    database.save_players(players)
-    print(f"Successfully scraped and saved {len(players)} players to the database.")
+    
+    team_codes = [target_team_code] if target_team_code else stats_scraper.TEAM_CODE_MAP.keys()
+    
+    all_players_collected = []
+    draft_cache = load_draft_cache()
+    session = requests.Session()
+    
+    for team_code in team_codes:
+        team_name = stats_scraper.TEAM_CODE_MAP.get(team_code)
+        logger.info(f'Scraping {team_name}...')
+        
+        url = f'https://npb.jp/bis/teams/rst_{team_code}.html'
+        res = session.get(url)
+        res.encoding = 'utf-8'
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        fielding = stats_scraper.scrape_fielding_stats(team_code)
+        farm_stats = stats_scraper.scrape_farm_stats(team_code)
+        
+        rows = soup.find_all('tr')
+        current_pos_category = ''
+        team_players = []
+        
+        for row in rows:
+            if 'rosterMainHead' in row.get('class', []):
+                th_pos = row.find('th', class_='rosterPos')
+                if th_pos:
+                    current_pos_category = th_pos.text.strip()
+                continue
+            
+            if 'rosterPlayer' not in row.get('class', []):
+                continue
+            
+            if any(x in current_pos_category for x in ['\u76e3\u7763', '\u30b3\u30fc\u30c1']):
+                continue
 
-if __name__ == "__main__":
-    main()
+            tds = row.find_all('td')
+            if len(tds) < 3: continue
+            
+            name_raw = tds[1].text.strip()
+            player_name = stats_scraper.normalize_name(name_raw)
+            pos = current_pos_category
+            
+            a_tag = tds[1].find('a')
+            player_id = ''
+            if a_tag:
+                player_id = a_tag['href'].split('/')[-1].replace('.html', '')
+
+            birth_str = tds[2].text.strip()
+            age = 25
+            years = 5
+            today = date(2026, 5, 4)
+            if birth_str and '.' in birth_str:
+                try:
+                    parts = birth_str.split('.')
+                    birth_date = date(int(parts[0]), int(parts[1]), int(parts[2]))
+                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                except Exception as e:
+                    logger.error(f'Error calculating age for {player_name}: {e}')
+
+            draft_year = get_draft_year(player_name, player_id, session, draft_cache)
+            if draft_year:
+                years = 2026 - draft_year
+            else:
+                if age <= 22:
+                    years = max(1, age - 18 + 1)
+                else:
+                    years = max(1, age - 22 + 1)
+
+            stats = database.get_player_season_stats(player_name)
+            batting = next((s for s in stats if s['stat_type'] == 'batting'), None)
+            pitching = next((s for s in stats if s['stat_type'] == 'pitching'), None)
+            
+            batting_avg = batting['batting_avg'] if batting else None
+            home_runs = batting['home_runs'] if batting else None
+            era = pitching['era'] if pitching else None
+            
+            p_farm = farm_stats.get(player_name, {})
+            f_data = fielding.get(player_name, {})
+            f_positions = f_data.get('positions', {})
+            
+            current_perf = potential_engine.calculate_current_performance(
+                batting_avg=batting_avg,
+                home_runs=home_runs,
+                era=era,
+                positions_data=f_positions,
+                farm_stats=p_farm,
+                speed=50 
+            )
+            
+            pot_score = potential_engine.calculate_potential_score(
+                age=age, years_in_pro=years, current_performance=current_perf
+            )
+            
+            if not era:
+                m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
+                m_hr = home_runs if home_runs is not None else (p_farm.get('hr', 0) * 0.7)
+                m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
+                
+                power_score = 50
+                if m_slg:
+                    power_score = (m_slg - 0.300) * 150 + 50
+                if m_hr:
+                    power_score += m_hr * 2
+                
+                meet_score = 50
+                if m_avg:
+                    meet_score = (m_avg - 0.200) * 250 + 40
+
+                perf_axes = [
+                    max(10, min(100, power_score)), 
+                    max(10, min(100, meet_score)),  
+                    min(100, 50 + (p_farm.get('games', 0) / 10)), 
+                    potential_engine.calculate_subscores(f_positions)['defense'],
+                    current_perf
+                ]
+                sim_name = 'Ichiro'
+                sim_score = potential_engine.calculate_cosine_similarity(perf_axes, potential_engine.LEGENDS.get('\u30a4\u30c1\u30ed\u30fc', [90,90,90,90,90]))
+            else:
+                ip = pitching['innings_pitched'] if pitching else 0
+                so = pitching['strikeouts'] if pitching else 0
+                bb = pitching['walks'] if pitching else 0
+                gs = pitching['games'] if pitching else 1
+                
+                k9 = (so * 9 / ip) if ip > 0 else 5.0
+                bb9 = (bb * 9 / ip) if ip > 0 else 3.5
+                
+                stuff = (k9 - 4.0) * 12 + 40
+                control = 100 - (bb9 * 12)
+                stamina = (ip / gs) * 15 + 10 if gs > 0 else 30
+                breaking = (stuff + control) / 2 + random.uniform(-5, 5)
+                
+                perf_axes = [
+                    max(10, min(100, stuff)),    
+                    max(10, min(100, control)),  
+                    max(10, min(100, stamina)),  
+                    max(10, min(100, breaking)), 
+                    current_perf
+                ]
+                sim_name = 'Yamamoto'
+                sim_score = potential_engine.calculate_cosine_similarity(perf_axes, potential_engine.LEGENDS.get('\u5c71\u672c\u7531\u4f38', [90,90,90,90,90]))
+            
+            perf_axes = [max(10, min(100, x + random.uniform(-2, 2))) for x in perf_axes]
+            pot_axes = [min(100, pot_score * (0.8 + 0.05*i)) for i in range(5)]
+            
+            perf_area = potential_engine.calculate_chart_area(perf_axes)
+            pot_area = potential_engine.calculate_chart_area(pot_axes)
+            
+            player_data = {
+                'team': team_name, 'name': player_name, 'position': pos,
+                'age': age, 'years_in_pro': years,
+                'current_performance': current_perf, 'potential_score': pot_score,
+                'batting_avg': batting_avg, 'home_runs': home_runs, 'era': era,
+                'perf_area': int(perf_area), 'pot_area': int(pot_area),
+                'convergence_rate': round((perf_area / pot_area * 100), 1) if pot_area > 0 else 0,
+                'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
+                'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
+                'similarity_name': sim_name, 'similarity_score': round(sim_score * 100, 1),
+                'is_awakened': (perf_area / pot_area) > 0.85 if pot_area > 0 else False,
+                'image_url': f'https://api.dicebear.com/7.x/avataaars/svg?seed={player_name}'
+            }
+            team_players.append(player_data)
+            time.sleep(0.01)
+            
+        save_draft_cache(draft_cache)
+        all_players_collected.extend(team_players)
+        logger.info(f'Collected {len(team_players)} players for {team_name}')
+        time.sleep(0.1)
+
+    database.save_players(all_players_collected)
+    logger.info(f'Total {len(all_players_collected)} players saved to database.')
+
+if __name__ == '__main__':
+    scrape_real_data()
