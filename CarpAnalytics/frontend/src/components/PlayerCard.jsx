@@ -130,15 +130,22 @@ const PlayerCard = ({ player, seasonStats }) => {
             {player.is_unbalanced && <div className="unbalanced-badge">一芸特化</div>}
           </div>
 
-          <div className="metrics-summary" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '15px' }}>
+          <div className="metrics-summary" style={{ 
+            display: 'grid', 
+            gridTemplateColumns: showGhost ? '1fr 1fr' : '1fr', 
+            gap: '10px', 
+            marginTop: '15px' 
+          }}>
             <div className="metric-item">
               <div className="label">ポテンシャル充足率</div>
               <div className="value highlight">{player.convergence_rate || 0}%</div>
             </div>
-            <div className="metric-item">
-              <div className="label">類似モデル ({player.similarity_name || 'イチロー'})</div>
-              <div className="value">{player.similarity_score || 0}%</div>
-            </div>
+            {showGhost && (
+              <div className="metric-item">
+                <div className="label">類似モデル ({player.similarity_name || 'イチロー'})</div>
+                <div className="value">{player.similarity_score || 0}%</div>
+              </div>
+            )}
           </div>
           
           {player.fielding_json && (
