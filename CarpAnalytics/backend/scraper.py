@@ -185,7 +185,7 @@ def scrape_real_data(target_team_code=None):
                     potential_engine.calculate_subscores(f_positions)['defense'],
                     current_perf
                 ]
-                sim_name, sim_score, ghost_axes = potential_engine.find_best_role_model(perf_axes, is_pitcher=False)
+                sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=False)
             else:
                 ip = pitching['innings_pitched'] if pitching else 0
                 so = pitching['strikeouts'] if pitching else 0
@@ -207,7 +207,7 @@ def scrape_real_data(target_team_code=None):
                     max(10, min(100, breaking)), 
                     current_perf
                 ]
-                sim_name, sim_score, ghost_axes = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
+                sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
             
             perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
             pot_axes = [max(10, min(100, pot_score)) for _ in range(5)] # 歪みを修正
@@ -235,6 +235,14 @@ def scrape_real_data(target_team_code=None):
             convergence = (perf_area / pot_area) if pot_area > 0 else 0
             is_awakened = convergence > 0.82 or is_clutch
 
+            # ブレイクアウト（覚醒の兆し）判定: 若手かつ収束率が一定以上、または未完の大器
+            is_breaking_out = False
+            if age <= 25:
+                if 0.65 < convergence <= 0.82: # 収束に向かっている若手
+                    is_breaking_out = True
+                elif pot_score > 85 and current_perf < 60: # 潜在能力は高いがまだ実績が低い
+                    is_breaking_out = True
+
             player_data = {
                 'team': team_name, 'name': player_name, 'position': pos,
                 'age': age, 'years_in_pro': years,
@@ -245,6 +253,8 @@ def scrape_real_data(target_team_code=None):
                 'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
                 'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
                 'similarity_name': sim_name, 'similarity_score': sim_score,
+                'style_tag': style_tag,
+                'is_breaking_out': is_breaking_out,
                 'ghost_axes_json': json.dumps(ghost_axes),
                 'is_awakened': is_awakened,
                 'is_unbalanced': is_unbalanced,

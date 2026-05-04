@@ -1,15 +1,23 @@
 import math
 
-# ロールモデル（レジェンド）の定義
+# ロールモデル（レジェンド・現役スター）の定義
 LEGENDS = {
-    'イチロー': [70, 99, 98, 99, 95], # パワー, ミート, スピード, 守備, 安定感
-    '大谷翔平': [99, 92, 85, 70, 90],
-    '王貞治':   [99, 85, 50, 75, 99],
-    '村上宗隆': [98, 80, 45, 65, 85],
-    '近本光司': [65, 85, 98, 95, 90],
-    '山本由伸': [98, 95, 70, 85, 95], # 球威, 制球, スタミナ, 守備/変化, 安定感
-    'ダルビッシュ': [95, 90, 80, 95, 90],
-    '菅野智之': [85, 99, 85, 90, 95],
+    # 野手
+    'イチロー':     {'axes': [70, 99, 98, 99, 95], 'tag': '安打製造機', 'pitcher': False},
+    '大谷翔平':     {'axes': [99, 92, 85, 70, 90], 'tag': '二刀流・超人', 'pitcher': False},
+    '王貞治':       {'axes': [99, 85, 50, 75, 99], 'tag': '世界の王', 'pitcher': False},
+    '村上宗隆':     {'axes': [98, 80, 45, 65, 85], 'tag': '若き大砲', 'pitcher': False},
+    '近本光司':     {'axes': [65, 85, 98, 95, 90], 'tag': 'スピードスター', 'pitcher': False},
+    '柳田悠岐':     {'axes': [98, 85, 80, 70, 85], 'tag': 'フルスイング', 'pitcher': False},
+    '近藤健介':     {'axes': [75, 98, 60, 70, 95], 'tag': '出塁の達人', 'pitcher': False},
+    '周東佑京':     {'axes': [30, 70, 99, 85, 80], 'tag': '韋駄天', 'pitcher': False},
+    '源田壮亮':     {'axes': [40, 75, 85, 99, 90], 'tag': '守備職人', 'pitcher': False},
+    
+    # 投手
+    '山本由伸':     {'axes': [98, 95, 70, 85, 95], 'tag': '絶対的エース', 'pitcher': True},
+    'ダルビッシュ': {'axes': [95, 90, 80, 95, 90], 'tag': '変幻自在', 'pitcher': True},
+    '菅野智之':     {'axes': [85, 99, 85, 90, 95], 'tag': '精密機械', 'pitcher': True},
+    '佐々木朗希':   {'axes': [99, 85, 70, 80, 85], 'tag': '令和の怪物', 'pitcher': True},
 }
 
 def calculate_cosine_similarity(v1, v2):
@@ -25,28 +33,25 @@ def find_best_role_model(axes, is_pitcher):
     """最も類似したレジェンドを選出する"""
     best_score = -1.0
     best_name = "未定義"
+    best_tag = "分析中"
     best_axes = [50, 50, 50, 50, 50]
     
     # 候補のフィルタリング
-    candidates = {}
-    if is_pitcher:
-        # 投手レジェンド
-        candidates = {k: v for k, v in LEGENDS.items() if k in ['山本由伸', 'ダルビッシュ', '菅野智之']}
-    else:
-        # 野手レジェンド
-        candidates = {k: v for k, v in LEGENDS.items() if k in ['イチロー', '王貞治', '大谷翔平', '村上宗隆', '近本光司']}
+    candidates = {k: v for k, v in LEGENDS.items() if v['pitcher'] == is_pitcher}
     
     if not candidates:
         candidates = LEGENDS # フォールバック
         
-    for name, legend_axes in candidates.items():
+    for name, data in candidates.items():
+        legend_axes = data['axes']
         score = calculate_cosine_similarity(axes, legend_axes)
         if score > best_score:
             best_score = score
             best_name = name
+            best_tag = data['tag']
             best_axes = legend_axes
             
-    return best_name, round(best_score * 100, 1), best_axes
+    return best_name, round(best_score * 100, 1), best_axes, best_tag
 
 def calculate_chart_area(values):
     """

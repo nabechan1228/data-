@@ -577,3 +577,42 @@ body {
   backdrop-filter: blur(4px);
   box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
+
+/* ─── 味付け拡張：スタイルタグ & ブレイクアウト ─── */
+.style-tag {
+  display: inline-block;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--text-muted);
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.breakout-alert {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid #22C55E;
+  color: #4ADE80;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 8px;
+  animation: glow-pulse 2s infinite;
+}
+
+@keyframes glow-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.breaking-out-glow {
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.3) !important;
+  border-color: #22C55E !important;
+}

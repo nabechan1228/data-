@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Radar as RechartsRadar } from 'recharts';
+import { Sparkles } from 'lucide-react';
 
 const PlayerCard = ({ player, seasonStats }) => {
   const [activeTab, setActiveTab] = useState('profile');
@@ -69,6 +70,14 @@ const PlayerCard = ({ player, seasonStats }) => {
           <div className="name-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h2 className="player-name" style={{ margin: 0 }}>{player.name}</h2>
             {!!player.is_awakened && <span className="awakening-label">Awakening</span>}
+            {!!player.is_breaking_out && (
+              <span className="breakout-alert">
+                <Sparkles size={12} /> 覚醒の兆し
+              </span>
+            )}
+          </div>
+          <div className="style-tag-row" style={{ textAlign: 'left' }}>
+            {player.style_tag && <span className="style-tag">{player.style_tag}</span>}
           </div>
           <p className="player-meta">
             {player.team} | {player.position} | {player.age}歳 | プロ{player.years_in_pro}年目
@@ -83,7 +92,7 @@ const PlayerCard = ({ player, seasonStats }) => {
         {hasStats && <span className="league-badge">1軍</span>}
       </div>
 
-      <div className="player-image-container" style={{ textAlign: 'center', margin: '15px 0' }}>
+      <div className={`player-image-container ${player.is_breaking_out ? 'breaking-out-glow' : ''}`} style={{ textAlign: 'center', margin: '15px 0' }}>
         <img 
           src={player.image_url || 'https://via.placeholder.com/150'} 
           alt={player.name} 
