@@ -43,7 +43,9 @@ def _daily_stats_job():
     try:
         logger.info("[Scheduler] Daily season stats update started.")
         import stats_scraper
+        import scraper
         count = stats_scraper.scrape_all_stats()
+        scraper.update_players_from_db()
         logger.info(f"[Scheduler] Done. {count} records updated.")
     except Exception as e:
         logger.error(f"[Scheduler] Daily update failed: {e}")
@@ -268,15 +270,22 @@ def update_stats(request: Request, _: None = Depends(verify_token)):
     """
     try:
         import stats_scraper
+        import scraper
         logger.info("Season stats update triggered via API.")
         count = stats_scraper.scrape_all_stats()
+        scraper.update_players_from_db()
         last_updated = database.get_stats_last_updated()
         logger.info(f"Season stats update complete. {count} records.")
         return {
             "status": "success",
-            "message": f"{count}件の今季成績を更新しました。",
+            "message": f"{count}件の今季成績と全選手のポテンシャルデータを更新しました。",
             "last_updated": last_updated,
         }
     except Exception as e:
         logger.error(f"update_stats error: {e}")
         raise HTTPException(status_code=500, detail="成績更新中にエラーが発生しました。")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="127.0.0.1", port=8001, reload=True)

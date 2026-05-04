@@ -150,7 +150,7 @@ def calculate_current_performance(
 
     score = 50.0
     
-    if batting_avg is not None and (batting_avg > 0 or home_runs > 0):
+    if batting_avg is not None and (batting_avg > 0 or (home_runs or 0) > 0):
         avg_score = ((max(0.150, min(0.350, batting_avg)) - 0.150) / (0.350 - 0.150)) * 100
         hr_score = (min(home_runs or 0, 40) / 40.0) * 100
         score = (avg_score * 0.30) + (hr_score * 0.20) + (defense * 0.35) + (speed * 0.15)

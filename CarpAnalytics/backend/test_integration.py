@@ -18,10 +18,10 @@ def test_flow():
     for s in stats:
         norm = stats_scraper.normalize_name(s['player_name'])
         f = fielding.get(norm)
-        if f:
-            s['putouts'] = f['putouts']
-            s['assists'] = f['assists']
-            s['errors'] = f['errors']
+        if f and 'positions' in f:
+            s['putouts'] = sum(p.get('putouts', 0) for p in f['positions'].values())
+            s['assists'] = sum(p.get('assists', 0) for p in f['positions'].values())
+            s['errors'] = sum(p.get('errors', 0) for p in f['positions'].values())
         else:
             if "菊池" in s['player_name']:
                 print(f"Match failed for {s['player_name']} (normalized: {norm})")

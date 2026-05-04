@@ -81,7 +81,7 @@ const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId, comparePla
                   strokeWidth={isSelected || isCompare ? 3 : 0}
                   r={size}
                   fillOpacity={opacity}
-                  style={{ cursor: 'pointer', transition: 'all 0.3s' }}
+                  style={{ cursor: 'pointer', transition: players.length > 200 ? 'none' : 'all 0.3s' }}
                 />
               );
             })}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import axios from 'axios'
 import './App.css'
 import PlayerCard from './components/PlayerCard'
@@ -60,11 +60,12 @@ function App() {
     axios.get(`${API_URL}/api/players`)
       .then(res => {
         if (res.data.status === 'success') {
-          setPlayers(res.data.data)
-          // デフォルトの選択選手をカープの選手か最初の選手にする
-          if (res.data.data.length > 0 && !selectedPlayer) {
-            const carpPlayer = res.data.data.find(p => p.team === '広島東洋カープ')
-            setSelectedPlayer(carpPlayer || res.data.data[0])
+          const newData = res.data.data
+          setPlayers(newData)
+          // 選択中の選手がいる場合は最新のデータに更新、いない場合はデフォルトを設定
+          if (newData.length > 0) {
+            setSelectedPlayer(prev => prev ? (newData.find(p => p.id === prev.id) || prev) : (newData.find(p => p.team === '広島東洋カープ') || newData[0]))
+            setComparePlayer(prev => prev ? (newData.find(p => p.id === prev.id) || prev) : null)
           }
         }
         setLoading(false)
@@ -77,16 +78,18 @@ function App() {
 
   useEffect(() => { fetchPlayers() }, [fetchPlayers])
 
-  // フィルタリング & ソート & 検索
-  const filteredPlayers = players
-    .filter(p => {
-      if (filterLeague === 'Both') return true;
-      return LEAGUE_TEAMS[filterLeague].includes(p.team);
-    })
-    .filter(p => filterTeam === '全球団' || p.team === filterTeam)
-    .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
-    .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
-    .sort((a, b) => sortByPotential ? b.potential_score - a.potential_score : 0)
+  // フィルタリング & ソート & 検索 (メモ化してパフォーマンス向上)
+  const filteredPlayers = useMemo(() => {
+    return players
+      .filter(p => {
+        if (filterLeague === 'Both') return true;
+        return LEAGUE_TEAMS[filterLeague].includes(p.team);
+      })
+      .filter(p => filterTeam === '全球団' || p.team === filterTeam)
+      .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
+      .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
+      .sort((a, b) => sortByPotential ? b.potential_score - a.potential_score : 0);
+  }, [players, filterLeague, filterTeam, filterPosition, searchQuery, sortByPotential]);
 
   const handlePlayerClick = (player) => {
     if (compareMode) {
@@ -141,6 +144,7 @@ function App() {
         ? `（最終更新: ${new Date(res.data.last_updated).toLocaleString('ja-JP')}）`
         : ''
       setUpdateMsg({ type: 'success', text: `${res.data.message}${updated}` })
+      fetchPlayers()
     } catch (err) {
       setUpdateMsg({ type: 'error', text: sanitizeError(err) })
     } finally {
@@ -335,7 +339,7 @@ function App() {
             <div className="player-list">
               {filteredPlayers.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', padding: '10px' }}>選手が見つかりません</p>
-              ) : filteredPlayers.map(p => (
+              ) : filteredPlayers.slice(0, 100).map(p => (
                 <div
                   key={p.id}
                   className={`list-item ${selectedPlayer?.id === p.id ? 'active' : ''} ${comparePlayer?.id === p.id ? 'compare-active' : ''}`}
@@ -349,6 +353,11 @@ function App() {
                   <span className="list-item-score">P: {Math.round(p.potential_score)}</span>
                 </div>
               ))}
+              {filteredPlayers.length > 100 && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px' }}>
+                  ほか {filteredPlayers.length - 100} 名…（検索で絞り込めます）
+                </p>
+              )}
             </div>
           </div>
         </div>
