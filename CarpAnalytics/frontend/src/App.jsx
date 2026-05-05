@@ -41,7 +41,7 @@ function App() {
   const [error, setError] = useState(null)
   const [filterPosition, setFilterPosition] = useState('全員')
   const [filterTeam, setFilterTeam] = useState('全球団')
-  const [sortByPotential, setSortByPotential] = useState(false)
+  const [sortType, setSortType] = useState('number') // 'number', 'potential', 'area'
   const [searchQuery, setSearchQuery] = useState('')
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState(null)
@@ -88,8 +88,12 @@ function App() {
       .filter(p => filterTeam === '全球団' || p.team === filterTeam)
       .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
       .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
-      .sort((a, b) => sortByPotential ? b.potential_score - a.potential_score : 0);
-  }, [players, filterLeague, filterTeam, filterPosition, searchQuery, sortByPotential]);
+      .sort((a, b) => {
+        if (sortType === 'potential') return b.potential_score - a.potential_score;
+        if (sortType === 'area') return b.perf_area - a.perf_area;
+        return 0;
+      });
+  }, [players, filterLeague, filterTeam, filterPosition, searchQuery, sortType]);
 
   const handlePlayerClick = (player) => {
     if (compareMode) {
@@ -287,7 +291,7 @@ function App() {
               />
             </div>
           ) : (
-            <SeasonRankings />
+            <SeasonRankings players={players} />
           )}
 
           {/* 比較パネル */}
@@ -327,13 +331,17 @@ function App() {
             {/* ソートトグル */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
               <button
-                className={`filter-btn small ${!sortByPotential ? 'active' : ''}`}
-                onClick={() => setSortByPotential(false)}
+                className={`filter-btn small ${sortType === 'number' ? 'active' : ''}`}
+                onClick={() => setSortType('number')}
               >番号順</button>
               <button
-                className={`filter-btn small ${sortByPotential ? 'active' : ''}`}
-                onClick={() => setSortByPotential(true)}
-              >ポテンシャル順 ↓</button>
+                className={`filter-btn small ${sortType === 'potential' ? 'active' : ''}`}
+                onClick={() => setSortType('potential')}
+              >ポテンシャル ↓</button>
+              <button
+                className={`filter-btn small ${sortType === 'area' ? 'active' : ''}`}
+                onClick={() => setSortType('area')}
+              >総合力 ↓</button>
             </div>
 
             <div className="player-list">

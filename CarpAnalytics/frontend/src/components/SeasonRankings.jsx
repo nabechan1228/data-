@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Trophy, Filter, ChevronDown, Award } from 'lucide-react';
+import { Trophy, Filter, ChevronDown, Award, Activity } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
@@ -28,7 +28,7 @@ const PITCHING_CATEGORIES = [
   { id: 'strikeouts', label: '奪三振', format: (v) => v, unit: '個' },
 ];
 
-const SeasonRankings = () => {
+const SeasonRankings = ({ players = [] }) => {
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [league, setLeague] = useState('Central'); // 'Central' or 'Pacific'
@@ -89,6 +89,49 @@ const SeasonRankings = () => {
     return filtered.slice(0, 10);
   };
 
+  const getAreaRankings = (isPitcherCategory) => {
+    let filtered = players.filter(p => {
+        const isP = p.position === '投手' || (p.era !== null && p.era !== undefined);
+        return isPitcherCategory ? isP : !isP;
+    });
+    
+    // 規定フィルタの適用
+    if (onlyQualified) {
+      filtered = filtered.filter(p => {
+        const pName = p.name.replace(/[\s　]/g, '');
+        const pStat = stats.find(s => 
+          s.player_name.replace(/[\s　]/g, '') === pName && 
+          (isPitcherCategory ? s.stat_type === 'pitching' : s.stat_type === 'batting')
+        );
+        if (!pStat) return false;
+        const tg = pStat.team_games || 0;
+        if (tg <= 0) return false;
+        if (!isPitcherCategory) {
+          return (pStat.plate_appearances || 0) >= tg * 3.1;
+        } else {
+          return (pStat.innings_pitched || 0) >= tg * 1.0;
+        }
+      });
+    }
+
+    // リーグフィルタ
+    if (league === 'Central') {
+       filtered = filtered.filter(p => ['広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ', '中日ドラゴンズ', '東京ヤクルトスワローズ'].includes(p.team));
+    } else {
+       filtered = filtered.filter(p => ['オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ'].includes(p.team));
+    }
+
+    filtered.sort((a, b) => (b.perf_area || 0) - (a.perf_area || 0));
+    
+    // RankingTableのフォーマットに合わせる
+    return filtered.slice(0, 10).map(p => ({
+       id: p.id,
+       player_name: p.name,
+       team: p.team,
+       perf_area: p.perf_area
+    }));
+  };
+
   if (loading && stats.length === 0) {
     return (
       <div className="panel" style={{ textAlign: 'center', padding: '40px' }}>
@@ -132,6 +175,20 @@ const SeasonRankings = () => {
 
       <div className="ranking-grid">
         <section>
+          <h3 className="section-title"><Activity size={18} color="#F59E0B" /> 総合力（チャート面積）ランキング</h3>
+          <div className="category-scroll">
+            <RankingTable 
+              category={{ id: 'perf_area', label: '野手 総合力', format: v => v, unit: '' }} 
+              players={getAreaRankings(false)} 
+            />
+            <RankingTable 
+              category={{ id: 'perf_area', label: '投手 総合力', format: v => v, unit: '' }} 
+              players={getAreaRankings(true)} 
+            />
+          </div>
+        </section>
+
+        <section style={{ marginTop: '24px' }}>
           <h3 className="section-title"><Award size={18} color="#F59E0B" /> 打撃部門ランキング</h3>
           <div className="category-scroll">
             {BATTING_CATEGORIES.map(cat => (

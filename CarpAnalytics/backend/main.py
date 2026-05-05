@@ -39,14 +39,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # APScheduler: 毎日5:00に成績を自動更新
 # ─────────────────────────────────────
 def _daily_stats_job():
-    """バックグラウンドで今季成績を毎日更新"""
+    """バックグラウンドで今季成績を毎日更新し、トレンド分析を実行"""
     try:
         logger.info("[Scheduler] Daily season stats update started.")
         import stats_scraper
         import scraper
+        import history_engine
+        
         count = stats_scraper.scrape_all_stats()
         scraper.update_players_from_db()
-        logger.info(f"[Scheduler] Done. {count} records updated.")
+        history_engine.run_daily_history_pipeline()
+        
+        logger.info(f"[Scheduler] Done. {count} records updated and history recorded.")
     except Exception as e:
         logger.error(f"[Scheduler] Daily update failed: {e}")
 
@@ -232,16 +236,21 @@ def get_player_season_stats(player_name: str, request: Request):
 
 @app.post("/api/update-data")
 @limiter.limit("3/hour")
-def update_data(request: Request, _: None = Depends(verify_token)):
+def update_data(request: Request, script_name: str = Query("scraper.py"), _: None = Depends(verify_token)):
     """
     ロースタースクレイピングを再実行してDBを更新する（要シークレットトークン・1時間に3回まで）
     """
+    ALLOWED_SCRIPTS = {"scraper.py", "stats_scraper.py"}
+    if script_name not in ALLOWED_SCRIPTS:
+        logger.warning(f"Unauthorized script execution attempt: {script_name}")
+        raise HTTPException(status_code=403, detail="実行が許可されていないスクリプトです。")
+
     try:
         backend_dir = os.path.dirname(os.path.abspath(__file__))
-        scraper_path = os.path.join(backend_dir, "scraper.py")
+        scraper_path = os.path.join(backend_dir, script_name)
         python_exec = os.path.abspath(os.path.join(backend_dir, "..", "venv", "Scripts", "python.exe"))
 
-        logger.info("Roster update triggered via API.")
+        logger.info(f"Roster update triggered via API. Script: {script_name}")
         result = subprocess.run(
             [python_exec, scraper_path],
             capture_output=True, text=True, timeout=300, cwd=backend_dir

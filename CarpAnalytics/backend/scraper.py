@@ -156,7 +156,10 @@ def scrape_real_data(target_team_code=None):
                 era=era,
                 positions_data=f_positions,
                 farm_stats=p_farm,
-                speed=50 
+                speed=50,
+                plate_appearances=batting['plate_appearances'] if batting else 0,
+                innings_pitched=pitching['innings_pitched'] if pitching else 0,
+                team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)
             )
             
             pot_score = potential_engine.calculate_potential_score(
@@ -212,6 +215,8 @@ def scrape_real_data(target_team_code=None):
             perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
             pot_axes = [max(10, min(100, pot_score)) for _ in range(5)] # 歪みを修正
             
+            pot_upper, pot_lower = potential_engine.calculate_potential_bounds(pot_axes, age)
+            
             perf_area = potential_engine.calculate_chart_area(perf_axes)
             pot_area = potential_engine.calculate_chart_area(pot_axes)
             
@@ -251,6 +256,7 @@ def scrape_real_data(target_team_code=None):
                 'perf_area': int(perf_area), 'pot_area': int(pot_area),
                 'convergence_rate': round((convergence * 100), 1),
                 'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
+                'pot_axes_upper_json': json.dumps(pot_upper), 'pot_axes_lower_json': json.dumps(pot_lower),
                 'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
                 'similarity_name': sim_name, 'similarity_score': sim_score,
                 'style_tag': style_tag,
@@ -299,7 +305,10 @@ def update_players_from_db():
             era=era,
             positions_data=f_positions,
             farm_stats=p_farm,
-            speed=50 
+            speed=50,
+            plate_appearances=batting['plate_appearances'] if batting else 0,
+            innings_pitched=pitching['innings_pitched'] if pitching else 0,
+            team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)
         )
         
         pot_score = potential_engine.calculate_potential_score(
@@ -355,6 +364,8 @@ def update_players_from_db():
         perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
         pot_axes = [max(10, min(100, pot_score)) for _ in range(5)]
         
+        pot_upper, pot_lower = potential_engine.calculate_potential_bounds(pot_axes, age)
+        
         perf_area = potential_engine.calculate_chart_area(perf_axes)
         pot_area = potential_engine.calculate_chart_area(pot_axes)
         
@@ -389,6 +400,7 @@ def update_players_from_db():
             'perf_area': int(perf_area), 'pot_area': int(pot_area),
             'convergence_rate': round((convergence * 100), 1),
             'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
+            'pot_axes_upper_json': json.dumps(pot_upper), 'pot_axes_lower_json': json.dumps(pot_lower),
             'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
             'similarity_name': sim_name, 'similarity_score': sim_score,
             'style_tag': style_tag,

@@ -40,21 +40,18 @@ def _get(url: str, max_retries: int = 3) -> requests.Response:
         try:
             res = requests.get(url, headers=headers, timeout=15)
             if res.status_code == 200:
-                # Detect encoding from content or URL
-                if b'charset=utf-8' in res.content.lower() or b'charset="utf-8"' in res.content.lower():
+                # Detect encoding from content
+                content_sample = res.content[:2048].lower()
+                if b'charset=utf-8' in content_sample or b'charset="utf-8"' in content_sample or b'charset=utf8' in content_sample:
                     res.encoding = 'utf-8'
-                elif b'charset=shift_jis' in res.content.lower() or b'charset=cp932' in res.content.lower():
+                elif b'charset=shift_jis' in content_sample or b'charset=cp932' in content_sample:
                     res.encoding = 'cp932'
-                elif 'npb.jp' in url:
-                    # Default for NPB if no charset tag found
-                    # Many new pages are UTF-8, but old ones are CP932.
-                    # Use apparent_encoding as a hint, but default to utf-8 if it seems likely.
-                    if res.apparent_encoding in ('utf-8', 'ascii'):
+                else:
+                    # Use apparent_encoding but prioritize utf-8 if it's reasonably certain
+                    if res.apparent_encoding.lower() in ('utf-8', 'ascii'):
                         res.encoding = 'utf-8'
                     else:
-                        res.encoding = 'cp932'
-                else:
-                    res.encoding = res.apparent_encoding
+                        res.encoding = 'cp932' # Fallback for NPB
                 return res
             logger.warning(f"HTTP {res.status_code} for {url}, attempt {attempt + 1}")
         except requests.RequestException as e:

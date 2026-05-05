@@ -27,29 +27,33 @@ const PlayerCard = ({ player, seasonStats }) => {
     // バックエンドで計算済みの軸データがある場合はそれを使用する
     const perfAxes = player.perf_axes_json ? JSON.parse(player.perf_axes_json) : null;
     const potAxes = player.pot_axes_json ? JSON.parse(player.pot_axes_json) : null;
+    const potUpperAxes = player.pot_axes_upper_json ? JSON.parse(player.pot_axes_upper_json) : null;
+    const potLowerAxes = player.pot_axes_lower_json ? JSON.parse(player.pot_axes_lower_json) : null;
 
     if (perfAxes && potAxes) {
       const labels = isPitcher ? ['球威', '制球', 'スタミナ', '守備/変化', '安定感'] : ['パワー', 'ミート', 'スピード', '守備', '安定感'];
       return labels.map((label, i) => ({
         subject: label,
         reality: Math.min(100, perfAxes[i] + bonus),
-        vision: potAxes[i]
+        vision: potAxes[i],
+        visionUpper: potUpperAxes ? potUpperAxes[i] : potAxes[i],
+        visionLower: potLowerAxes ? potLowerAxes[i] : potAxes[i]
       }));
     }
 
     // フォールバック
     const baseData = isPitcher ? [
-      { subject: '球威', reality: 60 + bonus, vision: 80 },
-      { subject: '制球', reality: 60 + bonus, vision: 80 },
-      { subject: 'スタミナ', reality: 50 + bonus, vision: 70 },
-      { subject: '守備/変化', reality: 70 + bonus, vision: 80 },
-      { subject: '安定感', reality: 60 + bonus, vision: 85 }
+      { subject: '球威', reality: 60 + bonus, vision: 80, visionUpper: 85, visionLower: 75 },
+      { subject: '制球', reality: 60 + bonus, vision: 80, visionUpper: 85, visionLower: 75 },
+      { subject: 'スタミナ', reality: 50 + bonus, vision: 70, visionUpper: 75, visionLower: 65 },
+      { subject: '守備/変化', reality: 70 + bonus, vision: 80, visionUpper: 85, visionLower: 75 },
+      { subject: '安定感', reality: 60 + bonus, vision: 85, visionUpper: 90, visionLower: 80 }
     ] : [
-      { subject: 'パワー', reality: 60 + bonus, vision: 80 },
-      { subject: 'ミート', reality: 60 + bonus, vision: 80 },
-      { subject: 'スピード', reality: 60 + bonus, vision: 75 },
-      { subject: '守備', reality: 60 + bonus, vision: 75 },
-      { subject: '安定感', reality: 60 + bonus, vision: 85 }
+      { subject: 'パワー', reality: 60 + bonus, vision: 80, visionUpper: 85, visionLower: 75 },
+      { subject: 'ミート', reality: 60 + bonus, vision: 80, visionUpper: 85, visionLower: 75 },
+      { subject: 'スピード', reality: 60 + bonus, vision: 75, visionUpper: 80, visionLower: 70 },
+      { subject: '守備', reality: 60 + bonus, vision: 75, visionUpper: 80, visionLower: 70 },
+      { subject: '安定感', reality: 60 + bonus, vision: 85, visionUpper: 90, visionLower: 80 }
     ];
 
     if (showGhost) {
@@ -72,7 +76,7 @@ const PlayerCard = ({ player, seasonStats }) => {
             {!!player.is_awakened && <span className="awakening-label">Awakening</span>}
             {!!player.is_breaking_out && (
               <span className="breakout-alert">
-                <Sparkles size={12} /> 覚醒の兆し
+                📈 急成長中
               </span>
             )}
           </div>
@@ -133,7 +137,9 @@ const PlayerCard = ({ player, seasonStats }) => {
                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                 <Tooltip />
                 {showGhost && <RechartsRadar name="Legend" dataKey="ghost" stroke="#64748b" fill="#64748b" fillOpacity={0.1} strokeDasharray="4 4" />}
-                <RechartsRadar name="Potential" dataKey="vision" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.05} strokeWidth={3} />
+                <RechartsRadar name="Potential Upper" dataKey="visionUpper" stroke="none" fill="#F59E0B" fillOpacity={0.15} />
+                <RechartsRadar name="Potential Lower" dataKey="visionLower" stroke="none" fill="#F59E0B" fillOpacity={0.25} />
+                <RechartsRadar name="Potential" dataKey="vision" stroke="#F59E0B" fill="none" strokeWidth={1} strokeDasharray="3 3" />
                 <RechartsRadar name="Current" dataKey="reality" stroke="#E50012" fill="#E50012" fillOpacity={0.6} strokeWidth={2} />
               </RadarChart>
             </ResponsiveContainer>

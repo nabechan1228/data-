@@ -43,6 +43,8 @@ def init_db():
             is_unbalanced BOOLEAN,
             perf_axes_json TEXT,
             pot_axes_json TEXT,
+            pot_axes_upper_json TEXT,
+            pot_axes_lower_json TEXT,
             fielding_json TEXT,
             farm_stats_json TEXT,
             is_awakened BOOLEAN,
@@ -89,6 +91,20 @@ def init_db():
             UNIQUE(player_name, stat_type) ON CONFLICT REPLACE
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS player_daily_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_date TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            team TEXT,
+            ops REAL,
+            k9 REAL,
+            similarity_name TEXT,
+            similarity_score REAL,
+            is_breaking_out BOOLEAN,
+            UNIQUE(snapshot_date, player_name) ON CONFLICT REPLACE
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -131,6 +147,21 @@ def ensure_stats_table():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS player_daily_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_date TEXT NOT NULL,
+            player_name TEXT NOT NULL,
+            team TEXT,
+            ops REAL,
+            k9 REAL,
+            similarity_name TEXT,
+            similarity_score REAL,
+            is_breaking_out BOOLEAN,
+            UNIQUE(snapshot_date, player_name) ON CONFLICT REPLACE
+        )
+    ''')
+    
     # 既存テーブルへのカラム追加（マイグレーション）
     cursor.execute("PRAGMA table_info(season_stats_2026)")
     columns = [row[1] for row in cursor.fetchall()]
@@ -168,16 +199,16 @@ def save_players(players_data: List[Dict]):
                 team, name, position, age, years_in_pro, current_performance, potential_score, 
                 batting_avg, home_runs, era, defense, speed, putouts, assists, errors, triples, 
                 stolen_base_caught, perf_area, pot_area, convergence_rate, is_unbalanced, 
-                perf_axes_json, pot_axes_json, fielding_json, farm_stats_json, is_awakened, 
+                perf_axes_json, pot_axes_json, pot_axes_upper_json, pot_axes_lower_json, fielding_json, farm_stats_json, is_awakened, 
                 image_url, similarity_name, similarity_score, style_tag, is_breaking_out, ghost_axes_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (p.get('team'), p.get('name'), p.get('position'), p.get('age'), p.get('years_in_pro'), 
               p.get('current_performance'), p.get('potential_score'), 
               p.get('batting_avg'), p.get('home_runs'), p.get('era'), 
               p.get('defense'), p.get('speed'), p.get('putouts'), p.get('assists'), p.get('errors'), p.get('triples'), p.get('stolen_base_caught'),
               p.get('perf_area'), p.get('pot_area'), p.get('convergence_rate'), p.get('is_unbalanced'),
-              p.get('perf_axes_json'), p.get('pot_axes_json'), p.get('fielding_json'), p.get('farm_stats_json'), p.get('is_awakened'), p.get('image_url'),
+              p.get('perf_axes_json'), p.get('pot_axes_json'), p.get('pot_axes_upper_json'), p.get('pot_axes_lower_json'), p.get('fielding_json'), p.get('farm_stats_json'), p.get('is_awakened'), p.get('image_url'),
               p.get('similarity_name'), p.get('similarity_score'), p.get('style_tag'), p.get('is_breaking_out'), p.get('ghost_axes_json')))
     conn.commit()
     conn.close()
@@ -259,6 +290,48 @@ def get_stats_last_updated() -> Optional[str]:
     row = cursor.execute('SELECT MAX(last_updated) FROM season_stats_2026').fetchone()
     conn.close()
     return row[0] if row else None
+
+def save_daily_snapshots(snapshots: List[Dict]):
+    """毎日のスナップショットを保存"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    for s in snapshots:
+        cursor.execute('''
+            INSERT OR REPLACE INTO player_daily_snapshots
+            (snapshot_date, player_name, team, ops, k9, similarity_name, similarity_score, is_breaking_out)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            s.get('snapshot_date'), s.get('player_name'), s.get('team'),
+            s.get('ops'), s.get('k9'), s.get('similarity_name'),
+            s.get('similarity_score'), s.get('is_breaking_out')
+        ))
+    conn.commit()
+    conn.close()
+
+def get_player_snapshots(player_name: str, days: int = 30) -> List[Dict]:
+    """特定選手の直近N日間のスナップショットを取得"""
+    conn = _get_conn()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT * FROM player_daily_snapshots
+        WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ?
+        ORDER BY snapshot_date DESC
+        LIMIT ?
+    ''', (f"%{re.sub(r'[\s　]', '', player_name)}%", days))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+    
+def update_player_breaking_out(player_name: str, is_breaking_out: bool):
+    """覚醒フラグの直接更新"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE players SET is_breaking_out = ? 
+        WHERE replace(replace(name, ' ', ''), '　', '') = ?
+    ''', (is_breaking_out, re.sub(r'[\s　]', '', player_name)))
+    conn.commit()
+    conn.close()
 
 if __name__ == "__main__":
     init_db()

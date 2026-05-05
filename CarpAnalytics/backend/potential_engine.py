@@ -160,6 +160,21 @@ def calculate_current_performance(
         era_score = 100 - ((era_clamped - 1.20) / (7.00 - 1.20)) * 100
         score = (era_score * 0.8) + (defense * 0.15) + (speed * 0.05)
         
+    # サンプル数による信頼度補正 (Phase 2)
+    # 実績が少ない選手はスコアをベースライン(25.0)に引き寄せる
+    pa = kwargs.get('plate_appearances', 0)
+    ip = kwargs.get('innings_pitched', 0)
+    team_games = kwargs.get('team_games', 20) # まだ序盤なのでデフォルト20程度
+    
+    if batting_avg is not None:
+        target_pa = team_games * 2.0 # チーム試合数×2打席程度あれば信頼
+        weight = min(1.0, pa / target_pa) if target_pa > 0 else 0
+        score = score * weight + 25.0 * (1.0 - weight)
+    elif era is not None:
+        target_ip = team_games * 0.5 # チーム試合数×0.5イニング程度あれば信頼
+        weight = min(1.0, ip / target_ip) if target_ip > 0 else 0
+        score = score * weight + 25.0 * (1.0 - weight)
+
     return max(0.0, min(100.0, score))
 
 def calculate_potential(age, years_in_pro, current_performance, position="内野手", situational_data=None, **kwargs):
@@ -194,3 +209,37 @@ def calculate_potential(age, years_in_pro, current_performance, position="内野
 def calculate_potential_score(age, years_in_pro, current_performance, **kwargs):
     """互換性のためのラッパー"""
     return calculate_potential(age, years_in_pro, current_performance, **kwargs)
+
+import random
+
+def calculate_potential_bounds(pot_axes, age):
+    """
+    モンテカルロ・シミュレーションにより、ポテンシャルの上限・下限（±1σ）を算出する。
+    若手（ageが小さい）ほどブレ幅（標準偏差）が大きくなる。
+    """
+    if not pot_axes or len(pot_axes) != 5:
+        return [0]*5, [0]*5
+        
+    SIMULATIONS = 100
+    base_std_dev = max(2.0, (35 - age) * 0.8) # 18歳なら13.6、30歳なら4.0の標準偏差
+    
+    # 軸ごとにシミュレーション結果を格納
+    results = [[] for _ in range(5)]
+    
+    for _ in range(SIMULATIONS):
+        for i in range(5):
+            # 成長の期待値に正規分布でノイズを加える
+            noise = random.gauss(0, base_std_dev)
+            val = pot_axes[i] + noise
+            results[i].append(max(0, min(100, val)))
+            
+    upper_bounds = []
+    lower_bounds = []
+    for i in range(5):
+        mean = sum(results[i]) / SIMULATIONS
+        variance = sum((x - mean) ** 2 for x in results[i]) / SIMULATIONS
+        std_dev = math.sqrt(variance)
+        upper_bounds.append(int(min(100, mean + std_dev)))
+        lower_bounds.append(int(max(0, mean - std_dev)))
+        
+    return upper_bounds, lower_bounds
