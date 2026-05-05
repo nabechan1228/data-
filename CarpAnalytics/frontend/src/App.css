@@ -265,7 +265,7 @@ body {
   color: var(--text-muted);
 }
 
-/* ドット（EジションカラーEE*/
+/* ドット（ポジションカラー） */
 .list-item-dot {
   width: 8px;
   height: 8px;
@@ -274,7 +274,7 @@ body {
   margin-right: 8px;
 }
 
-/* 比輁E手EハイライチE*/
+/* 比較中ハイライト */
 .list-item.compare-active {
   background-color: rgba(59, 130, 246, 0.2);
   border-color: #3B82F6;
@@ -342,7 +342,7 @@ body {
   cursor: not-allowed;
 }
 
-/* 比輁Eードトグル */
+/* 比較モードトグル */
 .compare-toggle-btn {
   display: flex;
   align-items: center;
@@ -362,7 +362,7 @@ body {
   color: #fff;
 }
 
-/* ─── ローチEング & エラー画面 ─── */
+/* ─── ローディング & エラー画面 ─── */
 .loading-screen, .error-screen {
   display: flex;
   flex-direction: column;
@@ -387,7 +387,7 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* ─── トEスト通知 ─── */
+/* ─── トースト通知 ─── */
 .toast {
   display: flex;
   align-items: center;
@@ -413,7 +413,7 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ─── 比輁EンチE─── */
+/* ─── 比較ヒント ─── */
 .compare-hint {
   background: rgba(59, 130, 246, 0.1);
   border: 1px solid #3B82F6;
@@ -424,7 +424,7 @@ body {
   color: #93C5FD;
 }
 
-/* ─── ポジションフィルターバE ─── */
+/* ─── ポジションフィルターバー ─── */
 .filter-bar {
   display: flex;
   gap: 8px;
@@ -455,7 +455,7 @@ body {
   font-size: 0.8rem;
 }
 
-/* ─── 検索バE ─── */
+/* ─── 検索バー ─── */
 .search-bar {
   display: flex;
   align-items: center;
@@ -482,7 +482,7 @@ body {
   color: var(--text-muted);
 }
 
-/* ─── 比輁Eネル ─── */
+/* ─── 比較パネル ─── */
 .compare-panel {
   background-color: var(--bg-dark);
   border-radius: 12px;
@@ -615,4 +615,182 @@ body {
 .breaking-out-glow {
   box-shadow: 0 0 15px rgba(34, 197, 94, 0.3) !important;
   border-color: #22C55E !important;
+}
+
+/* ─── Lineup Optimizer: Realistic Field ─── */
+.lineup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.field-panel {
+  overflow: hidden;
+}
+
+.baseball-field {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-color: #2e7d32;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.03) 30px,
+    transparent 30px,
+    transparent 60px
+  );
+  border-radius: 50% 50% 10% 10%;
+  border: 4px solid #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 100px rgba(0,0,0,0.2);
+  margin: 0 auto;
+}
+
+/* 内野の土 */
+.infield-dirt {
+  position: absolute;
+  bottom: -5%;
+  left: 50%;
+  width: 75%;
+  height: 75%;
+  background: radial-gradient(circle at 50% 100%, #a1887f 0%, #8d6e63 100%);
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 10% 80% 10% 10%;
+  z-index: 1;
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+/* ベースパスの芝生（ダイヤモンド内部） */
+.infield-grass {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  width: 45%;
+  height: 45%;
+  background: #388e3c;
+  transform: translateX(-50%) rotate(45deg);
+  z-index: 2;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+
+/* ピッチャーマウンド */
+.pitchers-mound {
+  position: absolute;
+  top: 65%;
+  left: 50%;
+  width: 12%;
+  height: 12%;
+  background: radial-gradient(circle, #8d6e63 40%, #795548 100%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.pitchers-plate {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40%;
+  height: 10%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+}
+
+/* ベース */
+.base {
+  position: absolute;
+  width: 3%;
+  height: 3%;
+  background: #fff;
+  z-index: 4;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.home-plate {
+  position: absolute;
+  bottom: 3%;
+  left: 50%;
+  width: 4%;
+  height: 4%;
+  background: #fff;
+  clip-path: polygon(50% 100%, 100% 50%, 100% 0, 0 0, 0 50%);
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+/* 選手マーカー */
+.field-player-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.field-player-marker:hover {
+  transform: translate(-50%, -60%) scale(1.1);
+  z-index: 20;
+}
+
+.marker-badge {
+  background: linear-gradient(135deg, var(--accent-red), #b91c1c);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1.5px solid #fff;
+  margin-bottom: 4px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.marker-name {
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* 打順表と投手リストの調整 */
+.order-panel {
+  max-height: 100%;
+}
+
+.lineup-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.lineup-table tr {
+  background: rgba(255,255,255,0.03);
+  transition: background 0.2s;
+}
+
+.lineup-table tr:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.lineup-table td {
+  padding: 12px;
+}
+
+.lineup-table td:first-child { border-radius: 8px 0 0 8px; }
+.lineup-table td:last-child { border-radius: 0 8px 8px 0; }
+
+.highlight {
+  color: var(--accent-gold);
+  font-weight: 800;
 }

@@ -33,7 +33,7 @@ const LineupOptimizer = ({ teamName }) => {
 
   if (!teamName || teamName === '全球団') {
     return (
-      <div className="lineup-placeholder">
+      <div className="lineup-placeholder panel">
         <p>球団を選択して最適編成を表示します</p>
       </div>
     );
@@ -51,20 +51,20 @@ const LineupOptimizer = ({ teamName }) => {
 
   const { defensive_lineup, batting_order, pitching_staff } = lineupData;
 
-  // 守備位置の座標定義 (0-100%)
+  // 守備位置の座標定義 (0-100%) - より広範囲に分散
   const positionCoords = {
     '投手': { top: '65%', left: '50%' },
-    '捕手': { top: '85%', left: '50%' },
-    '一塁手': { top: '55%', left: '75%' },
+    '捕手': { top: '92%', left: '50%' },
+    '一塁手': { top: '56%', left: '80%' },
     '二塁手': { top: '40%', left: '65%' },
-    '三塁手': { top: '55%', left: '25%' },
+    '三塁手': { top: '56%', left: '20%' },
     '遊撃手': { top: '40%', left: '35%' },
-    '左翼手': { top: '20%', left: '20%' },
-    '中堅手': { top: '15%', left: '50%' },
-    '右翼手': { top: '20%', left: '80%' },
-    '外野手1': { top: '20%', left: '20%' },
-    '外野手2': { top: '15%', left: '50%' },
-    '外野手3': { top: '20%', left: '80%' },
+    '左翼手': { top: '22%', left: '15%' },
+    '中堅手': { top: '10%', left: '50%' },
+    '右翼手': { top: '22%', left: '85%' },
+    '外野手1': { top: '22%', left: '15%' },
+    '外野手2': { top: '10%', left: '50%' },
+    '外野手3': { top: '22%', left: '85%' },
   };
 
   return (
@@ -74,8 +74,16 @@ const LineupOptimizer = ({ teamName }) => {
         <div className="field-panel panel">
           <h3 className="panel-title"><Shield size={18} /> Optimized Defense</h3>
           <div className="baseball-field">
-            <div className="diamond" />
-            <div className="grass" />
+            <div className="infield-dirt" />
+            <div className="infield-grass" />
+            <div className="pitchers-mound">
+              <div className="pitchers-plate" />
+            </div>
+            <div className="home-plate" />
+            <div className="base first" style={{ top: '50%', left: '72%', transform: 'rotate(45deg)' }} />
+            <div className="base second" style={{ top: '28%', left: '50%', transform: 'rotate(45deg)' }} />
+            <div className="base third" style={{ top: '50%', left: '28%', transform: 'rotate(45deg)' }} />
+            
             {Object.entries(defensive_lineup).map(([pos, player]) => {
               const coords = positionCoords[pos] || { top: '50%', left: '50%' };
               return (
@@ -141,9 +149,9 @@ const LineupOptimizer = ({ teamName }) => {
             </div>
           </div>
           <div className="pitcher-group">
-            <h4>リリーフ陣</h4>
+            <h4>リリーフ・抑え</h4>
             <div className="pitcher-cards">
-              {pitching_staff.relievers.slice(0, 3).map((p, i) => (
+              {pitching_staff.relievers.slice(0, 4).map((p, i) => (
                 <div key={i} className="pitcher-mini-card relief">
                   <div className="p-info">
                     <div className="p-name">{p.name}</div>
