@@ -17,6 +17,8 @@ def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('DROP TABLE IF EXISTS players')
+    cursor.execute('DROP TABLE IF EXISTS season_stats_2026')
+    cursor.execute('DROP TABLE IF EXISTS player_daily_snapshots')
     cursor.execute('''
         CREATE TABLE players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

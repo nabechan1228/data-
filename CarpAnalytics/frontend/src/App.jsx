@@ -5,7 +5,8 @@ import PlayerCard from './components/PlayerCard'
 import PotentialMatrix from './components/PotentialMatrix'
 import ComparePanel from './components/ComparePanel'
 import SeasonRankings from './components/SeasonRankings'
-import { Activity, Users, RefreshCw, Search, BarChart2, Trophy } from 'lucide-react'
+import LineupOptimizer from './components/LineupOptimizer'
+import { Activity, Users, RefreshCw, Search, BarChart2, Trophy, Layout } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
 const SCRAPE_TOKEN = import.meta.env.VITE_SCRAPE_SECRET_TOKEN || ''
@@ -196,6 +197,9 @@ function App() {
             <button className={`tab-btn ${view === 'rankings' ? 'active' : ''}`} onClick={() => setView('rankings')}>
               <Trophy size={16} /> 成績ランキング
             </button>
+            <button className={`tab-btn ${view === 'lineup' ? 'active' : ''}`} onClick={() => setView('lineup')}>
+              <Layout size={16} /> 最適編成
+            </button>
           </div>
           <button
             className={`compare-toggle-btn ${compareMode ? 'active' : ''}`}
@@ -290,8 +294,10 @@ function App() {
                 comparePlayerId={comparePlayer?.id}
               />
             </div>
-          ) : (
+          ) : view === 'rankings' ? (
             <SeasonRankings players={players} />
+          ) : (
+            <LineupOptimizer teamName={filterTeam} />
           )}
 
           {/* 比較パネル */}

@@ -68,8 +68,9 @@ def get_draft_year(player_name, player_id, session, cache):
         
     return None
 
-def scrape_real_data(target_team_code=None):
-    database.init_db()
+def scrape_real_data(target_team_code=None, skip_init=False):
+    if not skip_init:
+        database.init_db()
     
     team_codes = [target_team_code] if target_team_code else stats_scraper.TEAM_CODE_MAP.keys()
     
@@ -120,7 +121,7 @@ def scrape_real_data(target_team_code=None):
             birth_str = tds[2].text.strip()
             age = 25
             years = 5
-            today = date(2026, 5, 4)
+            today = date.today()
             if birth_str and '.' in birth_str:
                 try:
                     parts = birth_str.split('.')

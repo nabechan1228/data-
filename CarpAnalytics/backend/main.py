@@ -234,6 +234,22 @@ def get_player_season_stats(player_name: str, request: Request):
         raise HTTPException(status_code=500, detail="成績データ取得中にエラーが発生しました。")
 
 
+@app.get("/api/teams/{team_name}/optimized-lineup")
+@limiter.limit("10/minute")
+def get_optimized_lineup(team_name: str, request: Request):
+    """チームの最適編成を取得する"""
+    team_name = _validate_team(team_name)
+    try:
+        import lineup_engine
+        db_path = os.path.join(os.path.dirname(__file__), "carp_data.db")
+        result = lineup_engine.get_optimized_team_data(team_name, db_path)
+        logger.info(f"GET /api/teams/{team_name}/optimized-lineup -> success.")
+        return {"status": "success", "data": result}
+    except Exception as e:
+        logger.error(f"Error in get_optimized_lineup: {e}")
+        raise HTTPException(status_code=500, detail="最適編成の生成中にエラーが発生しました。")
+
+
 @app.post("/api/update-data")
 @limiter.limit("3/hour")
 def update_data(request: Request, script_name: str = Query("scraper.py"), _: None = Depends(verify_token)):
