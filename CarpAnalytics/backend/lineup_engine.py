@@ -32,6 +32,9 @@ class LineupOptimizer:
                 p['era_live'] = stat.get('era')
                 p['wins'] = stat.get('wins', 0)
                 p['ip'] = stat.get('innings_pitched', 0)
+                p['saves'] = stat.get('saves', 0)
+                p['holds'] = stat.get('holds', 0)
+                p['games'] = stat.get('games', 0)
             else:
                 stat = batter_stats.get(name, {})
                 p['avg_live'] = stat.get('batting_avg', 0)
@@ -203,16 +206,76 @@ class LineupOptimizer:
             e = p.get('era_live')
             return float(e) if e is not None else 9.99
 
-        pitchers.sort(key=lambda x: (x['current_performance'] or 0) - (get_era(x) * 0.1), reverse=True)
-        starters = pitchers[:4]
-        remaining = pitchers[4:]
-        closer = [remaining[0]] if remaining else []
-        relievers = remaining[1:6] if len(remaining) > 1 else []
+        for p in pitchers:
+            era = get_era(p)
+            ip = p.get('ip', 0)
+            wins = p.get('wins', 0)
+            games = p.get('games', 0)
+            saves = p.get('saves', 0)
+            holds = p.get('holds', 0)
+            
+            score = (p['current_performance'] or 0)
+            if era < 9.99:
+                score += (4.0 - era) * 10
+                score += ip * 0.5
+                score += wins * 5
+                score += saves * 10
+                score += holds * 5
+            else:
+                score -= 100 # Huge penalty for no 1st team stats
+            
+            p['pitcher_score'] = score
+            
+            # Roles based on actual stats
+            ip_per_game = ip / games if games > 0 else 0
+            is_starter_material = ip_per_game >= 3.0 or wins >= 3
+
+            if saves >= 1 and saves > holds and not is_starter_material:
+                p['role'] = 'closer'
+            elif is_starter_material:
+                p['role'] = 'starter'
+            else:
+                p['role'] = 'reliever'
+
+        # Sort all by score
+        active_pitchers = sorted(pitchers, key=lambda x: x['pitcher_score'], reverse=True)
+        
+        starters = [p for p in active_pitchers if p.get('role') == 'starter']
+        closers = [p for p in active_pitchers if p.get('role') == 'closer']
+        relievers = [p for p in active_pitchers if p.get('role') == 'reliever']
+        
+        # Fallback if categories are empty
+        if len(starters) < 6:
+            needed = 6 - len(starters)
+            available = [p for p in relievers if p not in starters][:needed]
+            starters.extend(available)
+            relievers = [p for p in relievers if p not in available]
+            
+        if not closers and relievers:
+            closers = [relievers.pop(0)]
+            
+        # Ensure we just take the top ones
+        starters = sorted(starters, key=lambda x: x['pitcher_score'], reverse=True)[:6]
+        relievers = sorted(relievers, key=lambda x: x['pitcher_score'], reverse=True)[:6]
+        closer = closers[:1] if closers else []
+        
+        def _pitcher_data(p):
+            return {
+                "name": p['name'],
+                "era": get_era(p),
+                "wins": p.get('wins', 0),
+                "games": p.get('games', 0),
+                "ip": p.get('ip', 0),
+                "holds": p.get('holds', 0),
+                "saves": p.get('saves', 0),
+                "perf": p['current_performance'],
+                "image_url": p.get('image_url')
+            }
         
         return {
-            "starters": [{"name": p['name'], "era": get_era(p), "wins": p.get('wins', 0), "perf": p['current_performance']} for p in starters],
-            "relievers": [{"name": p['name'], "era": get_era(p), "perf": p['current_performance']} for p in relievers],
-            "closer": [{"name": p['name'], "era": get_era(p), "perf": p['current_performance']} for p in closer] if closer else []
+            "starters": [_pitcher_data(p) for p in starters],
+            "relievers": [_pitcher_data(p) for p in relievers],
+            "closer": [_pitcher_data(p) for p in closer]
         }
 
 def get_optimized_team_data(team_name: str, db_path: str):

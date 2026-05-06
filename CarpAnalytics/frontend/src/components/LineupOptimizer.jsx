@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Target, List, Thermometer, Shield } from 'lucide-react';
+import { Target, List, Thermometer, Shield, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
@@ -157,38 +157,119 @@ const LineupOptimizer = ({ teamName }) => {
               <h4>先発ローテーション</h4>
               <div className="pitcher-cards">
                 {pitching_staff.starters.map((p, i) => (
-                  <div key={i} className="pitcher-mini-card starter">
-                    <div className="p-rank">{i + 1}</div>
-                    <div className="p-info">
-                      <div className="p-name">{p.name}</div>
-                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)} | W: {p.wins}</div>
+                  <div key={i} className="premium-pitcher-card starter">
+                    <div className="pitcher-image-wrapper">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="pitcher-image" />
+                      ) : (
+                        <User size={40} className="pitcher-placeholder" />
+                      )}
+                      <div className="pitcher-rank">{i + 1}</div>
+                    </div>
+                    <div className="pitcher-info">
+                      <div className="pitcher-name">{p.name}</div>
+                      <div className="pitcher-stats-grid">
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">ERA</span>
+                          <span className={`pitcher-stat-value ${p.era < 3.0 ? 'excellent' : ''}`}>{p.era === 9.99 ? '-' : p.era?.toFixed(2)}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">WINS</span>
+                          <span className={`pitcher-stat-value ${p.wins >= 10 ? 'excellent' : ''}`}>{p.wins}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">IP</span>
+                          <span className="pitcher-stat-value">{p.ip}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">GAMES</span>
+                          <span className="pitcher-stat-value">{p.games}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+            
             <div className="pitcher-group">
-              <h4>リリーフ・抑え</h4>
+              <h4>リリーフ・中継ぎ</h4>
               <div className="pitcher-cards">
-                {pitching_staff.relievers.slice(0, 4).map((p, i) => (
-                  <div key={i} className="pitcher-mini-card relief">
-                    <div className="p-info">
-                      <div className="p-name">{p.name}</div>
-                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)}</div>
+                {pitching_staff.relievers.map((p, i) => (
+                  <div key={i} className="premium-pitcher-card reliever">
+                    <div className="pitcher-image-wrapper">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="pitcher-image" />
+                      ) : (
+                        <User size={40} className="pitcher-placeholder" />
+                      )}
                     </div>
-                  </div>
-                ))}
-                {pitching_staff.closer.map((p, i) => (
-                  <div key={i} className="pitcher-mini-card closer">
-                    <div className="p-tag">守護神</div>
-                    <div className="p-info">
-                      <div className="p-name">{p.name}</div>
-                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)}</div>
+                    <div className="pitcher-info">
+                      <div className="pitcher-name">{p.name}</div>
+                      <div className="pitcher-stats-grid">
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">ERA</span>
+                          <span className={`pitcher-stat-value ${p.era < 3.0 ? 'excellent' : ''}`}>{p.era === 9.99 ? '-' : p.era?.toFixed(2)}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">HOLDS</span>
+                          <span className={`pitcher-stat-value ${p.holds >= 20 ? 'excellent' : ''}`}>{p.holds}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">GAMES</span>
+                          <span className="pitcher-stat-value">{p.games}</span>
+                        </div>
+                        <div className="pitcher-stat-item">
+                          <span className="pitcher-stat-label">IP</span>
+                          <span className="pitcher-stat-value">{p.ip}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {pitching_staff.closer && pitching_staff.closer.length > 0 && (
+              <div className="pitcher-group">
+                <h4>守護神・抑え</h4>
+                <div className="pitcher-cards">
+                  {pitching_staff.closer.map((p, i) => (
+                    <div key={i} className="premium-pitcher-card closer">
+                      <div className="pitcher-badge">CLOSER</div>
+                      <div className="pitcher-image-wrapper">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.name} className="pitcher-image" />
+                        ) : (
+                          <User size={40} className="pitcher-placeholder" />
+                        )}
+                      </div>
+                      <div className="pitcher-info">
+                        <div className="pitcher-name">{p.name}</div>
+                        <div className="pitcher-stats-grid">
+                          <div className="pitcher-stat-item">
+                            <span className="pitcher-stat-label">ERA</span>
+                            <span className={`pitcher-stat-value ${p.era < 3.0 ? 'excellent' : ''}`}>{p.era === 9.99 ? '-' : p.era?.toFixed(2)}</span>
+                          </div>
+                          <div className="pitcher-stat-item">
+                            <span className="pitcher-stat-label">SAVES</span>
+                            <span className={`pitcher-stat-value ${p.saves >= 20 ? 'excellent' : ''}`}>{p.saves}</span>
+                          </div>
+                          <div className="pitcher-stat-item">
+                            <span className="pitcher-stat-label">GAMES</span>
+                            <span className="pitcher-stat-value">{p.games}</span>
+                          </div>
+                          <div className="pitcher-stat-item">
+                            <span className="pitcher-stat-label">IP</span>
+                            <span className="pitcher-stat-value">{p.ip}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

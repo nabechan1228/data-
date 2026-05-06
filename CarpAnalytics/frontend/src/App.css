@@ -794,3 +794,157 @@ body {
   color: var(--accent-gold);
   font-weight: 800;
 }
+
+/* ─── Premium Pitcher Cards ─── */
+.pitcher-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.pitcher-group h4 {
+  font-size: 1.2rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+  padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pitcher-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.premium-pitcher-card {
+  position: relative;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+  overflow: hidden;
+}
+
+.premium-pitcher-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 4px; height: 100%;
+}
+
+.premium-pitcher-card.starter::before { background: #3B82F6; } /* Blue */
+.premium-pitcher-card.reliever::before { background: #10B981; } /* Green */
+.premium-pitcher-card.closer::before { background: #F59E0B; } /* Gold */
+
+.premium-pitcher-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.pitcher-image-wrapper {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.2);
+  flex-shrink: 0;
+  background-color: var(--bg-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.pitcher-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pitcher-placeholder {
+  color: var(--text-muted);
+}
+
+.pitcher-rank {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: var(--accent-red);
+  color: white;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: bold;
+  border: 2px solid var(--bg-dark);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.pitcher-info {
+  flex-grow: 1;
+}
+
+.pitcher-name {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin: 0 0 0.5rem 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pitcher-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.pitcher-stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.pitcher-stat-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.pitcher-stat-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-light);
+}
+
+.pitcher-stat-value.excellent {
+  color: var(--accent-gold);
+}
+
+.pitcher-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  letter-spacing: 1px;
+}
