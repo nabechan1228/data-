@@ -50,11 +50,21 @@ class LineupOptimizer:
         if not pitchers:
             pitchers = players
         
-        def get_era(p):
+        def get_pitcher_score(p):
             e = p.get('era_live')
-            return float(e) if e is not None else 9.99
+            era = float(e) if e is not None else 9.99
+            ip = float(p.get('ip', 0))
+            wins = int(p.get('wins', 0))
+            score = (p['current_performance'] or 0)
+            if era < 9.99:
+                score += (4.0 - era) * 10
+                score += ip * 0.5
+                score += wins * 5
+            else:
+                score -= 100 # Heavy penalty for no 1st team stats
+            return score
 
-        best_pitcher = max(pitchers, key=lambda x: (x['current_performance'] or 0) - (get_era(x) * 0.1))
+        best_pitcher = max(pitchers, key=get_pitcher_score)
         
         fielders_pool = [p for p in players if p['id'] != best_pitcher['id']]
         
