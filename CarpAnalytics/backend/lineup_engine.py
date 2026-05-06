@@ -291,7 +291,7 @@ def get_optimized_team_data(team_name: str, db_path: str):
     return {
         "team": team_name,
         "league": league,
-        "defensive_lineup": {k: {"name": v["name"], "id": v["id"]} for k, v in def_lineup.items()},
+        "defensive_lineup": {k: {"name": v["name"], "id": v["id"], "image_url": v.get("image_url")} for k, v in def_lineup.items()},
         "batting_order": batting_order,
         "pitching_staff": pitching_staff
     }

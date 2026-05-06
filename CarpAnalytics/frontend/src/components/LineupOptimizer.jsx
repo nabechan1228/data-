@@ -109,6 +109,13 @@ const LineupOptimizer = ({ teamName }) => {
                   className="field-player-marker"
                   style={{ top: coords.top, left: coords.left }}
                 >
+                  <div className="marker-image-wrapper">
+                    {player.image_url ? (
+                      <img src={player.image_url} alt={player.name} className="marker-image" />
+                    ) : (
+                      <User size={20} />
+                    )}
+                  </div>
                   <div className="marker-badge">{pos.replace(/[0-9]/, '')}</div>
                   <div className="marker-name">{player.name}</div>
                 </div>

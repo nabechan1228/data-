@@ -167,7 +167,7 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 age=age, years_in_pro=years, current_performance=current_perf
             )
             
-            if not era:
+            if '投手' not in pos:
                 m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
                 m_hr = home_runs if home_runs is not None else (p_farm.get('hr', 0) * 0.7)
                 m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
@@ -249,6 +249,22 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 elif pot_score > 85 and current_perf < 60: # 潜在能力は高いがまだ実績が低い
                     is_breaking_out = True
 
+            UNIFORM_MAP = {
+                '広島東洋カープ': 'hiroshima.png',
+                '読売ジャイアンツ': 'giants.png',
+                '阪神タイガース': 'tigers.png',
+                '横浜DeNAベイスターズ': 'baystars.png',
+                '東京ヤクルトスワローズ': 'swallows.png',
+                '中日ドラゴンズ': 'dragons.png',
+                'オリックス・バファローズ': 'buffaloes.png',
+                '千葉ロッテマリーンズ': 'marines.png',
+                '福岡ソフトバンクホークス': 'hawks.png',
+                '東北楽天ゴールデンイーグルス': 'eagles.png',
+                '埼玉西武ライオンズ': 'lions.png',
+                '北海道日本ハムファイターズ': 'fighters.png'
+            }
+            uniform_file = UNIFORM_MAP.get(team_name, 'hiroshima.png')
+
             player_data = {
                 'team': team_name, 'name': player_name, 'position': pos,
                 'age': age, 'years_in_pro': years,
@@ -265,7 +281,7 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 'ghost_axes_json': json.dumps(ghost_axes),
                 'is_awakened': is_awakened,
                 'is_unbalanced': is_unbalanced,
-                'image_url': f'https://api.dicebear.com/7.x/avataaars/svg?seed={player_name}'
+                'image_url': f'/uniforms/{uniform_file}'
             }
             team_players.append(player_data)
             time.sleep(0.01)
@@ -316,7 +332,7 @@ def update_players_from_db():
             age=age, years_in_pro=years, current_performance=current_perf, position=pos
         )
         
-        if not era:
+        if '投手' not in pos:
             m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
             m_hr = home_runs if home_runs is not None else (p_farm.get('hr', 0) * 0.7)
             m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
@@ -393,6 +409,22 @@ def update_players_from_db():
             elif pot_score > 85 and current_perf < 60:
                 is_breaking_out = True
 
+        UNIFORM_MAP = {
+            '広島東洋カープ': 'hiroshima.png',
+            '読売ジャイアンツ': 'giants.png',
+            '阪神タイガース': 'tigers.png',
+            '横浜DeNAベイスターズ': 'baystars.png',
+            '東京ヤクルトスワローズ': 'swallows.png',
+            '中日ドラゴンズ': 'dragons.png',
+            'オリックス・バファローズ': 'buffaloes.png',
+            '千葉ロッテマリーンズ': 'marines.png',
+            '福岡ソフトバンクホークス': 'hawks.png',
+            '東北楽天ゴールデンイーグルス': 'eagles.png',
+            '埼玉西武ライオンズ': 'lions.png',
+            '北海道日本ハムファイターズ': 'fighters.png'
+        }
+        uniform_file = UNIFORM_MAP.get(p['team'], 'hiroshima.png')
+
         player_data = {
             'team': p['team'], 'name': player_name, 'position': pos,
             'age': age, 'years_in_pro': years,
@@ -409,7 +441,7 @@ def update_players_from_db():
             'ghost_axes_json': json.dumps(ghost_axes),
             'is_awakened': is_awakened,
             'is_unbalanced': is_unbalanced,
-            'image_url': p['image_url']
+            'image_url': f'/uniforms/{uniform_file}'
         }
         updated_players.append(player_data)
         
