@@ -8,6 +8,7 @@ const LineupOptimizer = ({ teamName }) => {
   const [lineupData, setLineupData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('field');
 
   useEffect(() => {
     if (teamName && teamName !== '全球団') {
@@ -69,8 +70,24 @@ const LineupOptimizer = ({ teamName }) => {
 
   return (
     <div className="lineup-optimizer-container">
-      <div className="lineup-grid">
-        {/* 左側: フィールドビュー */}
+      <div className="tab-switcher" style={{ marginBottom: '1.5rem', display: 'inline-flex' }}>
+        <button 
+          className={`tab-btn ${activeTab === 'field' ? 'active' : ''}`}
+          onClick={() => setActiveTab('field')}
+        >
+          <Shield size={16} /> 野手編成
+        </button>
+        <button 
+          className={`tab-btn ${activeTab === 'pitchers' ? 'active' : ''}`}
+          onClick={() => setActiveTab('pitchers')}
+        >
+          <Target size={16} /> 投手編成
+        </button>
+      </div>
+
+      {activeTab === 'field' && (
+        <div className="lineup-grid">
+          {/* 左側: フィールドビュー */}
         <div className="field-panel panel">
           <h3 className="panel-title"><Shield size={18} /> Optimized Defense</h3>
           <div className="baseball-field">
@@ -128,50 +145,53 @@ const LineupOptimizer = ({ teamName }) => {
             </table>
           </div>
         </div>
-      </div>
+        </div>
+      )}
 
-      {/* 下側: 投手陣 */}
-      <div className="pitcher-panel panel">
-        <h3 className="panel-title"><Target size={18} /> Pitching Staff</h3>
-        <div className="pitcher-groups">
-          <div className="pitcher-group">
-            <h4>先発ローテーション</h4>
-            <div className="pitcher-cards">
-              {pitching_staff.starters.map((p, i) => (
-                <div key={i} className="pitcher-mini-card starter">
-                  <div className="p-rank">{i + 1}</div>
-                  <div className="p-info">
-                    <div className="p-name">{p.name}</div>
-                    <div className="p-stats">ERA: {p.era?.toFixed(2)} | W: {p.wins}</div>
+      {/* 投手陣タブ */}
+      {activeTab === 'pitchers' && (
+        <div className="pitcher-panel panel">
+          <h3 className="panel-title"><Target size={18} /> Pitching Staff</h3>
+          <div className="pitcher-groups">
+            <div className="pitcher-group">
+              <h4>先発ローテーション</h4>
+              <div className="pitcher-cards">
+                {pitching_staff.starters.map((p, i) => (
+                  <div key={i} className="pitcher-mini-card starter">
+                    <div className="p-rank">{i + 1}</div>
+                    <div className="p-info">
+                      <div className="p-name">{p.name}</div>
+                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)} | W: {p.wins}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="pitcher-group">
-            <h4>リリーフ・抑え</h4>
-            <div className="pitcher-cards">
-              {pitching_staff.relievers.slice(0, 4).map((p, i) => (
-                <div key={i} className="pitcher-mini-card relief">
-                  <div className="p-info">
-                    <div className="p-name">{p.name}</div>
-                    <div className="p-stats">ERA: {p.era?.toFixed(2)}</div>
+            <div className="pitcher-group">
+              <h4>リリーフ・抑え</h4>
+              <div className="pitcher-cards">
+                {pitching_staff.relievers.slice(0, 4).map((p, i) => (
+                  <div key={i} className="pitcher-mini-card relief">
+                    <div className="p-info">
+                      <div className="p-name">{p.name}</div>
+                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {pitching_staff.closer.map((p, i) => (
-                <div key={i} className="pitcher-mini-card closer">
-                  <div className="p-tag">守護神</div>
-                  <div className="p-info">
-                    <div className="p-name">{p.name}</div>
-                    <div className="p-stats">ERA: {p.era?.toFixed(2)}</div>
+                ))}
+                {pitching_staff.closer.map((p, i) => (
+                  <div key={i} className="pitcher-mini-card closer">
+                    <div className="p-tag">守護神</div>
+                    <div className="p-info">
+                      <div className="p-name">{p.name}</div>
+                      <div className="p-stats">ERA: {p.era === 9.99 ? '-' : p.era?.toFixed(2)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

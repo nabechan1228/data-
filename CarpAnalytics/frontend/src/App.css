@@ -620,7 +620,7 @@ body {
 /* ─── Lineup Optimizer: Realistic Field ─── */
 .lineup-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 3fr 2fr;
   gap: 2rem;
   margin-bottom: 2rem;
 }
@@ -650,13 +650,13 @@ body {
 /* 内野の土 */
 .infield-dirt {
   position: absolute;
-  bottom: -5%;
+  bottom: 10%;
   left: 50%;
-  width: 75%;
-  height: 75%;
-  background: radial-gradient(circle at 50% 100%, #a1887f 0%, #8d6e63 100%);
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(circle at 50% 50%, #a1887f 0%, #8d6e63 100%);
   transform: translateX(-50%) rotate(45deg);
-  border-radius: 10% 80% 10% 10%;
+  border-radius: 10%;
   z-index: 1;
   border: 2px solid rgba(255,255,255,0.2);
 }

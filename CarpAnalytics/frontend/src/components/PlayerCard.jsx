@@ -181,7 +181,7 @@ const PlayerCard = ({ player, seasonStats }) => {
         <div className="stats-tab">
           {isPitcher ? (
             <div className="stats-list">
-              <div className="stat-item"><span>防御率</span> <strong>{player.era || '---'}</strong></div>
+              <div className="stat-item"><span>防御率</span> <strong>{player.era === 9.99 ? '---' : (player.era || '---')}</strong></div>
               <div className="stat-item"><span>勝利</span> <strong>{pitching?.wins || 0}</strong></div>
               <div className="stat-item"><span>敗戦</span> <strong>{pitching?.losses || 0}</strong></div>
               <div className="stat-item"><span>奪三振</span> <strong>{pitching?.strikeouts || 0}</strong></div>

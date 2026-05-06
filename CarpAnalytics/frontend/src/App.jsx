@@ -245,7 +245,7 @@ function App() {
         </div>
       )}
 
-      <div className="grid-layout">
+      <div className="grid-layout" style={view === 'lineup' ? { gridTemplateColumns: '1fr' } : {}}>
         <div className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
           {/* フィルター類 */}
@@ -310,7 +310,8 @@ function App() {
           )}
         </div>
 
-        <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {view !== 'lineup' && (
+          <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="panel">
             {selectedPlayer ? (
               <PlayerCard player={selectedPlayer} seasonStats={selectedPlayerSeasonStats} />
@@ -374,7 +375,8 @@ function App() {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
