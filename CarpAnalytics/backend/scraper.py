@@ -160,6 +160,7 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 farm_stats=p_farm,
                 speed=50,
                 is_pitcher=is_pitcher,
+                ops=batting['ops'] if batting else 0,
                 plate_appearances=batting['plate_appearances'] if batting else 0,
                 innings_pitched=pitching['innings_pitched'] if pitching else 0,
                 team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)
@@ -327,6 +328,7 @@ def update_players_from_db():
             farm_stats=p_farm,
             speed=50,
             is_pitcher=is_pitcher,
+            ops=batting['ops'] if batting else 0,
             plate_appearances=batting['plate_appearances'] if batting else 0,
             innings_pitched=pitching['innings_pitched'] if pitching else 0,
             team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)

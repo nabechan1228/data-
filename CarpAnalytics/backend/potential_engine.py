@@ -140,6 +140,11 @@ def calculate_current_performance(
             if 'success_rate' in s_stats:
                 speed *= s_stats['success_rate']
 
+    # サンプル数とチーム試合数の取得（重み付けとHRペース計算に使用）
+    pa = kwargs.get('plate_appearances', 0)
+    ip = kwargs.get('innings_pitched', 0)
+    team_games = kwargs.get('team_games', 20) # まだ序盤なのでデフォルト20程度
+
     # 2軍実績の統合
     if batting_avg is None and farm_stats:
         batting_avg = farm_stats.get('avg', 0.0) * 0.8
@@ -162,10 +167,19 @@ def calculate_current_performance(
         era_score = 100 - (era_clamped / 7.00) * 100
         score = (era_score * 0.85) + (defense * 0.10) + (speed * 0.05)
     elif batting_avg is not None and (batting_avg > 0 or (home_runs or 0) > 0):
-        # 野手ロジック
+        # 野手ロジック (打撃 80%, 守備 10%, 走力 10%)
+        # 打率評価 (0.150 - 0.350)
         avg_score = ((max(0.150, min(0.350, batting_avg)) - 0.150) / (0.350 - 0.150)) * 100
-        hr_score = (min(home_runs or 0, 40) / 40.0) * 100
-        score = (avg_score * 0.30) + (hr_score * 0.20) + (defense * 0.35) + (speed * 0.15)
+        
+        # 本塁打評価 (チーム試合数に応じたペース評価: 143試合で40本ペースを100点)
+        target_hr_pace = (team_games / 143.0) * 40.0 if team_games > 0 else 5.0
+        hr_score = (min(home_runs or 0, target_hr_pace * 1.5) / target_hr_pace) * 70 + 30 if target_hr_pace > 0 else 50
+        
+        # OPS評価 (0.500 - 1.000)
+        ops = kwargs.get('ops', 0)
+        ops_score = ((max(0.500, min(1.000, ops)) - 0.500) / (1.000 - 0.500)) * 100
+        
+        score = (ops_score * 0.40) + (avg_score * 0.20) + (hr_score * 0.20) + (defense * 0.10) + (speed * 0.10)
     elif era is not None:
         # フォールバック
         era_clamped = max(0.00, min(7.00, era))
@@ -174,10 +188,6 @@ def calculate_current_performance(
         
     # サンプル数による信頼度補正 (Phase 2)
     # 実績が少ない選手はスコアをベースライン(25.0)に引き寄せる
-    pa = kwargs.get('plate_appearances', 0)
-    ip = kwargs.get('innings_pitched', 0)
-    team_games = kwargs.get('team_games', 20) # まだ序盤なのでデフォルト20程度
-    
     if is_pitcher and era is not None:
         target_ip = team_games * 0.5 # チーム試合数×0.5イニング程度あれば信頼
         weight = min(1.0, ip / target_ip) if target_ip > 0 else 0
