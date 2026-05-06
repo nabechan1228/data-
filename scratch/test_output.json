@@ -1,0 +1,242 @@
+{
+  "team": "L“‡“Œ—mƒJ[ƒv",
+  "league": "Central",
+  "defensive_lineup": {
+    "“Šè": {
+      "name": "•Œ´‘ñ–¢",
+      "id": 1070,
+      "ops": 0,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=•Œ´‘ñ–¢"
+    },
+    "•ßè": {
+      "name": "â‘q«Œá",
+      "id": 1095,
+      "ops": 0.898,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=â‘q«Œá"
+    },
+    "—VŒ‚è": {
+      "name": "¬‰€ŠC“l",
+      "id": 1102,
+      "ops": 0.539,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=¬‰€ŠC“l"
+    },
+    "“ñ—Ûè": {
+      "name": "‹e’r—Á‰î",
+      "id": 1105,
+      "ops": 0.652,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‹e’r—Á‰î"
+    },
+    "ŠO–ìè1": {
+      "name": "HRãÄŒá",
+      "id": 1116,
+      "ops": 0.723,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=HRãÄŒá"
+    },
+    "O—Ûè": {
+      "name": "²X–Ø‘×",
+      "id": 1104,
+      "ops": 0.486,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=²X–Ø‘×"
+    },
+    "ˆê—Ûè": {
+      "name": "ƒ‚ƒ“ƒeƒ",
+      "id": 1114,
+      "ops": 0.782,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=ƒ‚ƒ“ƒeƒ"
+    },
+    "ŠO–ìè2": {
+      "name": "•½ì˜@",
+      "id": 1118,
+      "ops": 0.517,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=•½ì˜@"
+    },
+    "ŠO–ìè3": {
+      "name": "‘å·•ä",
+      "id": 1121,
+      "ops": 0.439,
+      "era": null,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‘å·•ä"
+    }
+  },
+  "batting_order": [
+    {
+      "order": 1,
+      "id": 1105,
+      "name": "‹e’r—Á‰î",
+      "position": "“ñ—Ûè",
+      "avg": 0.267,
+      "ops": 0.652,
+      "hr": 0.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‹e’r—Á‰î",
+      "current_performance": 49.17037037037038
+    },
+    {
+      "order": 2,
+      "id": 1116,
+      "name": "HRãÄŒá",
+      "position": "ŠO–ìè1",
+      "avg": 0.262,
+      "ops": 0.723,
+      "hr": 2.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=HRãÄŒá",
+      "current_performance": 51.550000000000004
+    },
+    {
+      "order": 3,
+      "id": 1095,
+      "name": "â‘q«Œá",
+      "position": "•ßè",
+      "avg": 0.282,
+      "ops": 0.898,
+      "hr": 4.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=â‘q«Œá",
+      "current_performance": 56.579411764705874
+    },
+    {
+      "order": 4,
+      "id": 1114,
+      "name": "ƒ‚ƒ“ƒeƒ",
+      "position": "ˆê—Ûè",
+      "avg": 0.25,
+      "ops": 0.782,
+      "hr": 4.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=ƒ‚ƒ“ƒeƒ",
+      "current_performance": 49.720588235294116
+    },
+    {
+      "order": 5,
+      "id": 1102,
+      "name": "¬‰€ŠC“l",
+      "position": "—VŒ‚è",
+      "avg": 0.222,
+      "ops": 0.539,
+      "hr": 0.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=¬‰€ŠC“l",
+      "current_performance": 37.47929292929293
+    },
+    {
+      "order": 6,
+      "id": 1118,
+      "name": "•½ì˜@",
+      "position": "ŠO–ìè2",
+      "avg": 0.207,
+      "ops": 0.517,
+      "hr": 0.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=•½ì˜@",
+      "current_performance": 44.8
+    },
+    {
+      "order": 7,
+      "id": 1104,
+      "name": "²X–Ø‘×",
+      "position": "O—Ûè",
+      "avg": 0.18,
+      "ops": 0.486,
+      "hr": 2.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=²X–Ø‘×",
+      "current_performance": 35.91824794433902
+    },
+    {
+      "order": 8,
+      "id": 1121,
+      "name": "‘å·•ä",
+      "position": "ŠO–ìè3",
+      "avg": 0.195,
+      "ops": 0.439,
+      "hr": 1.0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‘å·•ä",
+      "current_performance": 44.80434782608696
+    },
+    {
+      "order": 9,
+      "id": 1070,
+      "name": "•Œ´‘ñ–¢",
+      "position": "“Šè",
+      "avg": 0,
+      "ops": 0,
+      "hr": 0,
+      "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=•Œ´‘ñ–¢",
+      "current_performance": 50.0
+    }
+  ],
+  "pitching_staff": {
+    "starters": [
+      {
+        "name": "•Œ´‘ñ–¢",
+        "era": 9.99,
+        "wins": 0,
+        "perf": 50.0,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=•Œ´‘ñ–¢"
+      },
+      {
+        "name": "‘ê“cˆêŠó",
+        "era": 9.99,
+        "wins": 0,
+        "perf": 50.0,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‘ê“cˆêŠó"
+      },
+      {
+        "name": "îà–Ø‰õ‘å",
+        "era": 9.99,
+        "wins": 0,
+        "perf": 50.0,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=îà–Ø‰õ‘å"
+      },
+      {
+        "name": "ŒI—Ñ—Ç—™",
+        "era": 1.19,
+        "wins": 2,
+        "perf": 38.75,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=ŒI—Ñ—Ç—™"
+      }
+    ],
+    "relievers": [
+      {
+        "name": "‰ª–{x",
+        "era": 1.48,
+        "perf": 31.04013079667063,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‰ª–{x"
+      },
+      {
+        "name": "ƒ^[ƒmƒbƒN",
+        "era": 3.27,
+        "perf": 28.806896551724137,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=ƒ^[ƒmƒbƒN"
+      },
+      {
+        "name": "X‰º’¨m",
+        "era": 4.62,
+        "perf": 27.423156956004757,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=X‰º’¨m"
+      },
+      {
+        "name": "XãÄ•½",
+        "era": 0.0,
+        "perf": 25.862068965517242,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=XãÄ•½"
+      },
+      {
+        "name": "‹Ê‘º¸Œå",
+        "era": 1.8,
+        "perf": 25.999554102259214,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=‹Ê‘º¸Œå"
+      }
+    ],
+    "closer": [
+      {
+        "name": "°“cŠ°÷",
+        "era": 2.95,
+        "perf": 32.41034482758621,
+        "image_url": "https://api.dicebear.com/7.x/avataaars/svg?seed=°“cŠ°÷"
+      }
+    ]
+  }
+}
