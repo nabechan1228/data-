@@ -40,18 +40,17 @@ def _get(url: str, max_retries: int = 3) -> requests.Response:
         try:
             res = requests.get(url, headers=headers, timeout=15)
             if res.status_code == 200:
-                # Detect encoding from content
-                content_sample = res.content[:2048].lower()
-                if b'charset=utf-8' in content_sample or b'charset="utf-8"' in content_sample or b'charset=utf8' in content_sample:
+                # 明示的にShift_JIS（cp932）を指定する場合が多いNPBへの対応
+                content_sample = res.content[:4096].lower()
+                if b'charset=utf-8' in content_sample or b'charset="utf-8"' in content_sample:
                     res.encoding = 'utf-8'
-                elif b'charset=shift_jis' in content_sample or b'charset=cp932' in content_sample:
+                elif b'shift_jis' in content_sample or b'cp932' in content_sample or b'ms932' in content_sample:
                     res.encoding = 'cp932'
                 else:
-                    # Use apparent_encoding but prioritize utf-8 if it's reasonably certain
-                    if res.apparent_encoding.lower() in ('utf-8', 'ascii'):
-                        res.encoding = 'utf-8'
-                    else:
-                        res.encoding = 'cp932' # Fallback for NPB
+                    # requestsの推測を使用
+                    res.encoding = res.apparent_encoding
+                    if res.encoding == 'ISO-8859-1': # 誤判定の定番
+                        res.encoding = 'cp932'
                 return res
             logger.warning(f"HTTP {res.status_code} for {url}, attempt {attempt + 1}")
         except requests.RequestException as e:

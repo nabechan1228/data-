@@ -151,6 +151,7 @@ def scrape_real_data(target_team_code=None, skip_init=False):
             f_data = fielding.get(player_name, {})
             f_positions = f_data.get('positions', {})
             
+            is_pitcher = '投手' in pos
             current_perf = potential_engine.calculate_current_performance(
                 batting_avg=batting_avg,
                 home_runs=home_runs,
@@ -158,13 +159,14 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 positions_data=f_positions,
                 farm_stats=p_farm,
                 speed=50,
+                is_pitcher=is_pitcher,
                 plate_appearances=batting['plate_appearances'] if batting else 0,
                 innings_pitched=pitching['innings_pitched'] if pitching else 0,
                 team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)
             )
             
             pot_score = potential_engine.calculate_potential_score(
-                age=age, years_in_pro=years, current_performance=current_perf
+                age=age, years_in_pro=years, current_performance=current_perf, position=pos
             )
             
             if '投手' not in pos:
@@ -202,8 +204,7 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 stuff = (k9 - 4.0) * 12 + 40
                 control = 100 - (bb9 * 12)
                 stamina = (ip / gs) * 15 + 10 if gs > 0 else 30
-                breaking = (stuff + control) / 2 + random.uniform(-5, 5)
-                
+                breaking = 50 + (k9 - 5.0) * 5 # 簡易的な変化球評価
                 perf_axes = [
                     max(10, min(100, stuff)),    
                     max(10, min(100, control)),  
@@ -213,8 +214,9 @@ def scrape_real_data(target_team_code=None, skip_init=False):
                 ]
                 sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
             
-            perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
-            pot_axes = [max(10, min(100, pot_score)) for _ in range(5)] # 歪みを修正
+            # ランダム性を排除し、ポテンシャル軸は実績軸の形状をベースに算出
+            pot_factor = pot_score / current_perf if current_perf > 0 else 1.2
+            pot_axes = [max(10, min(100, x * pot_factor)) for x in perf_axes]
             
             pot_upper, pot_lower = potential_engine.calculate_potential_bounds(pot_axes, age)
             
@@ -316,6 +318,7 @@ def update_players_from_db():
         p_farm = json.loads(p['farm_stats_json']) if p.get('farm_stats_json') else {}
         f_positions = json.loads(p['fielding_json']) if p.get('fielding_json') else {}
         
+        is_pitcher = '投手' in pos
         current_perf = potential_engine.calculate_current_performance(
             batting_avg=batting_avg,
             home_runs=home_runs,
@@ -323,6 +326,7 @@ def update_players_from_db():
             positions_data=f_positions,
             farm_stats=p_farm,
             speed=50,
+            is_pitcher=is_pitcher,
             plate_appearances=batting['plate_appearances'] if batting else 0,
             innings_pitched=pitching['innings_pitched'] if pitching else 0,
             team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1)
@@ -367,8 +371,7 @@ def update_players_from_db():
             stuff = (k9 - 4.0) * 12 + 40
             control = 100 - (bb9 * 12)
             stamina = (ip / gs) * 15 + 10 if gs > 0 else 30
-            breaking = (stuff + control) / 2 + random.uniform(-5, 5)
-            
+            breaking = 50 + (k9 - 5.0) * 5
             perf_axes = [
                 max(10, min(100, stuff)),    
                 max(10, min(100, control)),  
@@ -377,9 +380,10 @@ def update_players_from_db():
                 current_perf
             ]
             sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
-        
-        perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
-        pot_axes = [max(10, min(100, pot_score)) for _ in range(5)]
+            
+            # ランダム性を排除し、ポテンシャル軸は実績軸の形状をベースに算出
+            pot_factor = pot_score / current_perf if current_perf > 0 else 1.2
+            pot_axes = [max(10, min(100, x * pot_factor)) for x in perf_axes]
         
         pot_upper, pot_lower = potential_engine.calculate_potential_bounds(pot_axes, age)
         
