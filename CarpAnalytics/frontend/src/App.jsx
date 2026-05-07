@@ -219,15 +219,6 @@ function App() {
             <RefreshCw size={16} className={updating ? 'spinning' : ''} />
             {updating ? '更新中…' : '成績更新'}
           </button>
-          <button
-            className="update-btn"
-            onClick={handleUpdateData}
-            disabled={updating}
-            title="選手ロースターをNPBサイトから再取得（数分）"
-          >
-            <RefreshCw size={16} className={updating ? 'spinning' : ''} />
-            {updating ? '更新中…' : 'データ更新'}
-          </button>
         </div>
       </header>
 
@@ -249,38 +240,40 @@ function App() {
         <div className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
           {/* フィルター類 */}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div className="filter-bar">
-              <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
-              <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
-              <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
-            </div>
+          {view === 'matrix' && (
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div className="filter-bar">
+                <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
+                <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
+                <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
+              </div>
 
-            <div className="search-bar" style={{ marginBottom: 0, minWidth: '200px' }}>
-              <select 
-                value={filterTeam} 
-                onChange={(e) => setFilterTeam(e.target.value)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem' }}
-              >
-                {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
-                  <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="filter-bar">
-              {POSITIONS.map(pos => (
-                <button
-                  key={pos}
-                  className={`filter-btn ${filterPosition === pos ? 'active' : ''}`}
-                  style={filterPosition === pos && pos !== '全員' ? { borderColor: POSITION_COLORS[pos], color: POSITION_COLORS[pos] } : {}}
-                  onClick={() => setFilterPosition(pos)}
+              <div className="search-bar" style={{ marginBottom: 0, minWidth: '200px' }}>
+                <select 
+                  value={filterTeam} 
+                  onChange={(e) => setFilterTeam(e.target.value)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem' }}
                 >
-                  {pos}
-                </button>
-              ))}
+                  {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
+                    <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="filter-bar">
+                {POSITIONS.map(pos => (
+                  <button
+                    key={pos}
+                    className={`filter-btn ${filterPosition === pos ? 'active' : ''}`}
+                    style={filterPosition === pos && pos !== '全員' ? { borderColor: POSITION_COLORS[pos], color: POSITION_COLORS[pos] } : {}}
+                    onClick={() => setFilterPosition(pos)}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {view === 'matrix' ? (
             <div className="panel">
