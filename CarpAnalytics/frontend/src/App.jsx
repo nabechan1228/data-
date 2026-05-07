@@ -185,7 +185,7 @@ function App() {
       <header className="header">
         <div>
           <h1 className="title">NPB <span>Insight</span> Pro</h1>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '20px' }}>
             Reality vs Vision Analysis — {players.length}名のデータ表示中
           </div>
         </div>
