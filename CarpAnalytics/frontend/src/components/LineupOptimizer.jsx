@@ -4,7 +4,12 @@ import { Target, List, Thermometer, Shield, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
-const LineupOptimizer = ({ teamName }) => {
+const TEAMS = [
+  '広島東洋カープ', '阪神タイガース', '横浜DeNAベイスターズ', '読売ジャイアンツ', '東京ヤクルトスワローズ', '中日ドラゴンズ',
+  'オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ'
+];
+
+const LineupOptimizer = ({ teamName, onSelectTeam }) => {
   const [lineupData, setLineupData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -34,8 +39,27 @@ const LineupOptimizer = ({ teamName }) => {
 
   if (!teamName || teamName === '全球団') {
     return (
-      <div className="lineup-placeholder panel">
-        <p>球団を選択して最適編成を表示します</p>
+      <div className="team-selection-panel panel">
+        <h3 className="panel-title"><Shield size={20} /> 分析対象の球団を選択</h3>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>最適化エンジンが各選手のポテンシャルと今季のパフォーマンスを分析し、最高の布陣を提案します。</p>
+        
+        <div className="team-selection-grid">
+          {TEAMS.map(team => (
+            <div 
+              key={team} 
+              className="team-selection-card"
+              onClick={() => onSelectTeam(team)}
+            >
+              <div className="team-card-icon">
+                <Shield size={32} />
+              </div>
+              <div className="team-card-info">
+                <div className="team-card-name">{team}</div>
+                <div className="team-card-action">分析を表示 →</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -70,18 +94,28 @@ const LineupOptimizer = ({ teamName }) => {
 
   return (
     <div className="lineup-optimizer-container">
-      <div className="tab-switcher" style={{ marginBottom: '1.5rem', display: 'inline-flex' }}>
+      <div className="lineup-optimizer-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <div className="tab-switcher" style={{ display: 'inline-flex' }}>
+          <button 
+            className={`tab-btn ${activeTab === 'field' ? 'active' : ''}`}
+            onClick={() => setActiveTab('field')}
+          >
+            <Shield size={16} /> 野手編成
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'pitchers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('pitchers')}
+          >
+            <Target size={16} /> 投手編成
+          </button>
+        </div>
+        
         <button 
-          className={`tab-btn ${activeTab === 'field' ? 'active' : ''}`}
-          onClick={() => setActiveTab('field')}
+          className="filter-btn" 
+          onClick={() => onSelectTeam('全球団')}
+          style={{ fontSize: '0.8rem' }}
         >
-          <Shield size={16} /> 野手編成
-        </button>
-        <button 
-          className={`tab-btn ${activeTab === 'pitchers' ? 'active' : ''}`}
-          onClick={() => setActiveTab('pitchers')}
-        >
-          <Target size={16} /> 投手編成
+          ← 球団選択に戻る
         </button>
       </div>
 

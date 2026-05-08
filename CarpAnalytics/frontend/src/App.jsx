@@ -239,27 +239,27 @@ function App() {
       <div className="grid-layout" style={view === 'lineup' ? { gridTemplateColumns: '1fr' } : {}}>
         <div className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-          {/* フィルター類 */}
-          {view === 'matrix' && (
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <div className="filter-bar">
-                <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
-                <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
-                <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
-              </div>
+          {/* フィルター類 (全てのタブで共通) */}
+          <div className="global-filters" style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="filter-bar">
+              <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
+              <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
+              <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
+            </div>
 
-              <div className="search-bar" style={{ marginBottom: 0, minWidth: '200px' }}>
-                <select 
-                  value={filterTeam} 
-                  onChange={(e) => setFilterTeam(e.target.value)}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem' }}
-                >
-                  {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
-                    <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
-                  ))}
-                </select>
-              </div>
-              
+            <div className="search-bar" style={{ marginBottom: 0, minWidth: '220px' }}>
+              <select 
+                value={filterTeam} 
+                onChange={(e) => setFilterTeam(e.target.value)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem', cursor: 'pointer' }}
+              >
+                {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
+                  <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
+                ))}
+              </select>
+            </div>
+            
+            {view !== 'lineup' && (
               <div className="filter-bar">
                 {POSITIONS.map(pos => (
                   <button
@@ -272,8 +272,8 @@ function App() {
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {view === 'matrix' ? (
             <div className="panel">
@@ -290,7 +290,7 @@ function App() {
           ) : view === 'rankings' ? (
             <SeasonRankings players={players} />
           ) : (
-            <LineupOptimizer teamName={filterTeam} />
+            <LineupOptimizer teamName={filterTeam} onSelectTeam={setFilterTeam} />
           )}
 
           {/* 比較パネル */}

@@ -50,6 +50,9 @@ class LineupOptimizer:
         if not pitchers:
             pitchers = players
         
+        if not pitchers:
+            return {} # Return empty dict if no players at all
+        
         def get_pitcher_score(p):
             e = p.get('era_live')
             era = float(e) if e is not None else 9.99
