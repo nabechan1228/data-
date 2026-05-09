@@ -4,6 +4,14 @@ import { Target, List, Thermometer, Shield, User } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
 
+// M-4: エラーサニタイズ（詳細情報をユーザーに表示しない）
+const sanitizeError = (err) => {
+  if (err?.response?.status === 429) return 'リクエストが多すぎます。しばらく待ってから再試行してください。'
+  if (err?.response?.status >= 500) return 'サーバーエラーが発生しました。しばらく待ってから再試行してください。'
+  if (err?.response?.status === 404) return '指定したチームのデータが見つかりません。成績更新を実行してください。'
+  return '最適編成の取得に失敗しました。バックエンドが起動しているか確認してください。'
+}
+
 const TEAMS = [
   '広島東洋カープ', '阪神タイガース', '横浜DeNAベイスターズ', '読売ジャイアンツ', '東京ヤクルトスワローズ', '中日ドラゴンズ',
   'オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ'
@@ -25,13 +33,14 @@ const LineupOptimizer = ({ teamName, onSelectTeam }) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API_URL}/api/teams/${teamName}/optimized-lineup`);
+      const res = await axios.get(`${API_URL}/api/teams/${encodeURIComponent(teamName)}/optimized-lineup`);
       if (res.data.status === 'success') {
         setLineupData(res.data.data);
       }
     } catch (err) {
-      console.error('Failed to fetch optimized lineup', err);
-      setError('最適編成の取得に失敗しました。');
+      // M-4: console.errorは残しつつ、ユーザー向けにはサニタイズしたメッセージを表示
+      console.error('Failed to fetch optimized lineup:', err?.response?.status);
+      setError(sanitizeError(err));
     } finally {
       setLoading(false);
     }

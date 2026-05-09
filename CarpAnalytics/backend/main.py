@@ -45,11 +45,11 @@ def _daily_stats_job():
         import stats_scraper
         import scraper
         import history_engine
-        
+
         count = stats_scraper.scrape_all_stats()
         scraper.update_players_from_db()
         history_engine.run_daily_history_pipeline()
-        
+
         logger.info(f"[Scheduler] Done. {count} records updated and history recorded.")
     except Exception as e:
         logger.error(f"[Scheduler] Daily update failed: {e}")
@@ -74,8 +74,32 @@ app.add_middleware(
 )
 
 # ─────────────────────────────────────
-# セキュリティヘッダーミドルウェア（S1: CSP強化）
+# S-2: 管理エンドポイントをローカルIPのみに制限するミドルウェア
 # ─────────────────────────────────────
+_ADMIN_PATHS = {"/api/update-data", "/api/update-stats"}
+_LOCALHOST_IPS = {"127.0.0.1", "::1"}
+
+@app.middleware("http")
+async def restrict_admin_endpoints(request: Request, call_next):
+    """管理用エンドポイントはローカルホストからのアクセスのみ許可する"""
+    if request.url.path in _ADMIN_PATHS:
+        client_host = request.client.host if request.client else ""
+        if client_host not in _LOCALHOST_IPS:
+            logger.warning(
+                f"Admin endpoint access denied for {client_host} -> {request.url.path}"
+            )
+            return JSONResponse(
+                status_code=403,
+                content={"status": "error", "message": "このエンドポイントはローカルからのみアクセスできます。"}
+            )
+    return await call_next(request)
+
+# ─────────────────────────────────────
+# セキュリティヘッダーミドルウェア（CSP動的生成）
+# ─────────────────────────────────────
+# M-3: connect-src を ALLOWED_ORIGINS から動的生成（localhost ハードコードを排除）
+_csp_connect_src = " ".join(["'self'"] + ALLOWED_ORIGINS)
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -84,14 +108,13 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Cache-Control"] = "no-store"
-    # CSP強化（S1）
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "   # Viteのインラインスクリプトのため
+        "script-src 'self' 'unsafe-inline'; "    # Viteのインラインスクリプトのため
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data: https://placehold.co; "
-        "connect-src 'self' http://localhost:8001; "
+        f"connect-src {_csp_connect_src}; "
         "frame-ancestors 'none';"
     )
     return response
@@ -118,7 +141,7 @@ def verify_token(x_request_token: str = Header(...)):
         raise HTTPException(status_code=401, detail="認証トークンが無効です。")
 
 # ─────────────────────────────────────
-# Pydantic バリデーション（S2）
+# Pydantic バリデーション
 # ─────────────────────────────────────
 _SAFE_TEAM_NAMES = {
     '広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ',
@@ -202,17 +225,17 @@ def get_season_stats(
     league: str | None = Query(default=None, max_length=20),
 ):
     """今季1軍成績を取得（team/stat_type/leagueでフィルタ可能）"""
-    team = _validate_team(team)
+    team      = _validate_team(team)
     stat_type = _validate_stat_type(stat_type)
-    league = _validate_league(league)
+    league    = _validate_league(league)
     try:
-        stats = database.get_season_stats(team=team, stat_type=stat_type, league=league)
+        stats        = database.get_season_stats(team=team, stat_type=stat_type, league=league)
         last_updated = database.get_stats_last_updated()
         logger.info(f"GET /api/season-stats team={team} type={stat_type} league={league} -> {len(stats)} records.")
         return {
-            "status": "success",
+            "status":       "success",
             "last_updated": last_updated,
-            "data": stats,
+            "data":         stats,
         }
     except Exception as e:
         logger.error(f"DB error in get_season_stats: {e}")
@@ -242,7 +265,7 @@ def get_optimized_lineup(team_name: str, request: Request):
     try:
         import lineup_engine
         db_path = os.path.join(os.path.dirname(__file__), "carp_data.db")
-        result = lineup_engine.get_optimized_team_data(team_name, db_path)
+        result  = lineup_engine.get_optimized_team_data(team_name, db_path)
         logger.info(f"GET /api/teams/{team_name}/optimized-lineup -> success.")
         return {"status": "success", "data": result}
     except Exception as e:
@@ -252,9 +275,15 @@ def get_optimized_lineup(team_name: str, request: Request):
 
 @app.post("/api/update-data")
 @limiter.limit("3/hour")
-def update_data(request: Request, script_name: str = Query("scraper.py"), _: None = Depends(verify_token)):
+def update_data(
+    request: Request,
+    script_name: str = Query("scraper.py"),
+    _: None = Depends(verify_token),
+):
     """
-    ロースタースクレイピングを再実行してDBを更新する（要シークレットトークン・1時間に3回まで）
+    ロースタースクレイピングを再実行してDBを更新する。
+    【S-2】このエンドポイントはローカルホストからのみアクセス可能。
+    要シークレットトークン・1時間に3回まで。
     """
     ALLOWED_SCRIPTS = {"scraper.py", "stats_scraper.py"}
     if script_name not in ALLOWED_SCRIPTS:
@@ -262,9 +291,11 @@ def update_data(request: Request, script_name: str = Query("scraper.py"), _: Non
         raise HTTPException(status_code=403, detail="実行が許可されていないスクリプトです。")
 
     try:
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir  = os.path.dirname(os.path.abspath(__file__))
         scraper_path = os.path.join(backend_dir, script_name)
-        python_exec = os.path.abspath(os.path.join(backend_dir, "..", "venv", "Scripts", "python.exe"))
+        python_exec  = os.path.abspath(
+            os.path.join(backend_dir, "..", "venv", "Scripts", "python.exe")
+        )
 
         logger.info(f"Roster update triggered via API. Script: {script_name}")
         result = subprocess.run(
@@ -291,19 +322,20 @@ def update_data(request: Request, script_name: str = Query("scraper.py"), _: Non
 @limiter.limit("10/hour")
 def update_stats(request: Request, _: None = Depends(verify_token)):
     """
-    今季成績を再スクレイピングして更新する（軽量・約10〜20秒で完了）
+    今季成績を再スクレイピングして更新する（軽量・約10〜20秒で完了）。
+    【S-2】このエンドポイントはローカルホストからのみアクセス可能。
     """
     try:
         import stats_scraper
         import scraper
         logger.info("Season stats update triggered via API.")
-        count = stats_scraper.scrape_all_stats()
+        count        = stats_scraper.scrape_all_stats()
         scraper.update_players_from_db()
         last_updated = database.get_stats_last_updated()
         logger.info(f"Season stats update complete. {count} records.")
         return {
-            "status": "success",
-            "message": f"{count}件の今季成績と全選手のポテンシャルデータを更新しました。",
+            "status":       "success",
+            "message":      f"{count}件の今季成績と全選手のポテンシャルデータを更新しました。",
             "last_updated": last_updated,
         }
     except Exception as e:

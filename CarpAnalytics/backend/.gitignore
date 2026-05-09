@@ -1,0 +1,43 @@
+# ─────────────────────────────────────
+# CarpAnalytics backend .gitignore
+# ─────────────────────────────────────
+
+# 環境変数・シークレット（絶対にコミットしない）
+.env
+*.env
+
+# データベースファイル（バイナリ・個人情報含む）
+*.db
+*.sqlite
+*.sqlite3
+
+# Pythonキャッシュ
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# 仮想環境
+venv/
+.venv/
+env/
+
+# デバッグ・調査スクリプト（開発用の一時ファイル）
+check_*.py
+debug_*.py
+save_*.py
+fast_scrape.py
+find_charset.py
+verify_all.py
+write_scraper.py
+
+# テストスクリプト（pytestで管理していないもの）
+test_*.py
+final_check.py
+
+# スクレイピング中間ファイル
+*.html
+draft_cache.json
+
+# ログファイル
+*.log

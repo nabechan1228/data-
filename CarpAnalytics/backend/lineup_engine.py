@@ -10,18 +10,17 @@ class LineupOptimizer:
         self.db_path = db_path
 
     def get_team_players(self, team_name: str) -> List[Dict[str, Any]]:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM players WHERE team = ?", (team_name,))
-        players = [dict(row) for row in cursor.fetchall()]
-        
+        # R-4: with文でコネクションリークを防止
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            players = [dict(row) for row in conn.execute(
+                "SELECT * FROM players WHERE team = ?", (team_name,)
+            ).fetchall()]
+
         import database
-        batter_stats = {s['player_name']: s for s in database.get_season_stats(team=team_name, stat_type='batting')}
+        batter_stats  = {s['player_name']: s for s in database.get_season_stats(team=team_name, stat_type='batting')}
         pitcher_stats = {s['player_name']: s for s in database.get_season_stats(team=team_name, stat_type='pitching')}
-        
-        conn.close()
-        
+
         for p in players:
             name = p['name']
             p['fielding_json'] = json.loads(p['fielding_json']) if p.get('fielding_json') else {}

@@ -1,6 +1,6 @@
 """
 stats_scraper.py
-今季（2026年）1軍成績をNPB公式サイトから取得してDBに保存する軽量スクレイパー。
+今季NPB1軍成績をNPB公式サイトから取得してDBに保存する軽量スクレイパー。
 """
 import requests
 from bs4 import BeautifulSoup
@@ -9,6 +9,9 @@ import time
 import random
 import logging
 import re
+
+# R-3: 現在シーズン年をモジュール定数に集約（マジックナンバー排除）
+CURRENT_YEAR = 2026
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +76,10 @@ def _safe_int(val: str):
 
 def get_team_games_map() -> dict:
     games_map = {}
-    urls = ['https://npb.jp/bis/2026/stats/std_c.html', 'https://npb.jp/bis/2026/stats/std_p.html']
+    urls = [
+        f'https://npb.jp/bis/{CURRENT_YEAR}/stats/std_c.html',
+        f'https://npb.jp/bis/{CURRENT_YEAR}/stats/std_p.html',
+    ]
     for url in urls:
         try:
             res = _get(url)
@@ -96,7 +102,7 @@ def get_team_games_map() -> dict:
     return games_map
 
 def scrape_batting_stats(team_code: str, team_games_fallback: int = 0) -> list:
-    year = 2026
+    year = CURRENT_YEAR
     team_name = TEAM_CODE_MAP.get(team_code, team_code)
     league = LEAGUE_MAP.get(team_code, 'Unknown')
     url = f'https://npb.jp/bis/{year}/stats/idb1_{team_code}.html'
@@ -134,7 +140,7 @@ def scrape_batting_stats(team_code: str, team_games_fallback: int = 0) -> list:
     return stats_list
 
 def scrape_pitching_stats(team_code: str, team_games_fallback: int = 0) -> list:
-    year = 2026
+    year = CURRENT_YEAR
     team_name = TEAM_CODE_MAP.get(team_code, team_code)
     league = LEAGUE_MAP.get(team_code, 'Unknown')
     url = f'https://npb.jp/bis/{year}/stats/idp1_{team_code}.html'
@@ -170,7 +176,7 @@ def scrape_pitching_stats(team_code: str, team_games_fallback: int = 0) -> list:
     return stats_list
 
 def scrape_fielding_stats(team_code: str) -> dict:
-    year = 2026
+    year = CURRENT_YEAR
     url = f'https://npb.jp/bis/{year}/stats/idf1_{team_code}.html'
     res = _get(url)
     soup = BeautifulSoup(res.text, 'html.parser')
@@ -223,12 +229,13 @@ def scrape_fielding_stats(team_code: str) -> dict:
                         'errors': _safe_int(col('失策')) or 0,
                         'games': _safe_int(col('試合')) or 0
                     }
-                except:
+                except Exception as e:
+                    logger.warning(f'Failed to parse fielding row for {pos}: {e}')
                     continue
     return fielding_data
 
 def scrape_farm_stats(team_code: str) -> dict:
-    year = 2026
+    year = CURRENT_YEAR
     url = f'https://npb.jp/bis/{year}/stats/idb2_{team_code}.html'
     try:
         res = _get(url)
@@ -256,7 +263,9 @@ def scrape_farm_stats(team_code: str) -> dict:
                 'games': _safe_int(col('試合')), 'ops': round(obp + slg, 3)
             }
         return farm_data
-    except Exception: return {}
+    except Exception as e:
+        logger.warning(f'Failed to scrape farm stats for team {team_code}: {e}')
+        return {}
 
 def scrape_all_stats() -> int:
     database.ensure_stats_table()

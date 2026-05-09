@@ -9,7 +9,8 @@ import LineupOptimizer from './components/LineupOptimizer'
 import { Activity, Users, RefreshCw, Search, BarChart2, Trophy, Layout } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
-const SCRAPE_TOKEN = import.meta.env.VITE_SCRAPE_SECRET_TOKEN || ''
+// ⚠️ 管理エンドポイント（/api/update-*）はバックエンド側でローカルIP制限済みのため
+// フロントエンドからシークレットトークンを送信する必要はありません。
 
 // エラーサニタイズ（詳細情報を表示しない）
 const sanitizeError = (err) => {
@@ -122,11 +123,7 @@ function App() {
     setUpdating(true)
     setUpdateMsg(null)
     try {
-      const res = await axios.post(
-        `${API_URL}/api/update-data`,
-        {},
-        { headers: { 'X-Request-Token': SCRAPE_TOKEN } }
-      )
+      const res = await axios.post(`${API_URL}/api/update-data`, {})
       setUpdateMsg({ type: 'success', text: res.data.message })
       fetchPlayers()
     } catch (err) {
@@ -140,11 +137,7 @@ function App() {
     setUpdating(true)
     setUpdateMsg(null)
     try {
-      const res = await axios.post(
-        `${API_URL}/api/update-stats`,
-        {},
-        { headers: { 'X-Request-Token': SCRAPE_TOKEN } }
-      )
+      const res = await axios.post(`${API_URL}/api/update-stats`, {})
       const updated = res.data.last_updated
         ? `（最終更新: ${new Date(res.data.last_updated).toLocaleString('ja-JP')}）`
         : ''
