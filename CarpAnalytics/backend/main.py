@@ -135,10 +135,16 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ─────────────────────────────────────
 SECRET_TOKEN = os.getenv("SCRAPE_SECRET_TOKEN", "")
 
-def verify_token(x_request_token: str = Header(...)):
-    if not SECRET_TOKEN or x_request_token != SECRET_TOKEN:
-        logger.warning("Unauthorized scrape attempt blocked.")
-        raise HTTPException(status_code=401, detail="認証トークンが無効です。")
+def verify_token(x_request_token: str | None = Header(default=None)):
+    """
+    トークンを検証する。ただし、ローカルIP制限ミドルウェアで保護されているため、
+    ヘッダーが欠落していてもエラーにせず、あれば検証する形にする。
+    """
+    if x_request_token:
+        if not SECRET_TOKEN or x_request_token != SECRET_TOKEN:
+            logger.warning(f"Invalid token attempt: {x_request_token}")
+            raise HTTPException(status_code=401, detail="認証トークンが無効です。")
+    # トークンがない場合は、ミドルウェアのIP制限を信頼して通過させる
 
 # ─────────────────────────────────────
 # Pydantic バリデーション
