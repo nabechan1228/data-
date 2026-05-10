@@ -41,6 +41,8 @@ class LineupOptimizer:
                 p['obp'] = stat.get('on_base_pct', 0)
                 p['slg'] = stat.get('slg_pct', 0)
                 p['hr_live'] = stat.get('home_runs', 0)
+                p['games'] = stat.get('games', 0)
+                p['pa'] = stat.get('plate_appearances', 0)
 
         return players
 
@@ -78,66 +80,92 @@ class LineupOptimizer:
         assigned_lineup = {"投手": best_pitcher}
         used_player_ids = {best_pitcher['id']}
         
-        priority_pos = ["捕手", "遊撃手", "二塁手", "中堅手", "三塁手", "一塁手", "右翼手", "左翼手", "指名打者"]
-        actual_priority = [p for p in priority_pos if p in def_positions or (p in ["左翼手", "中堅手", "右翼手"] and "外野手" in def_positions)]
-
-        for pos in actual_priority:
-            target_pos_key = "外野手" if pos in ["左翼手", "中堅手", "右翼手"] else pos
-            
-            candidates = []
-            for p in fielders_pool:
-                if p['id'] in used_player_ids: continue
-                
-                suitability = 0
-                f_json = p.get('fielding_json', {})
-                
-                if pos in f_json or target_pos_key in f_json:
-                    suitability = 1.0
-                elif pos in p['position'] or target_pos_key in p['position']:
-                    suitability = 0.9
-                elif target_pos_key == "外野手" and ("外野" in p['position'] or any(x in f_json for x in ["左翼手", "中堅手", "右翼手", "外野手"])):
-                    suitability = 0.8
-                elif pos == "指名打者":
-                    suitability = 0.7
-                
-                if suitability > 0:
-                    performance = p['current_performance'] or 0
-                    ops = p.get('ops')
-                    ops_bonus = (float(ops) if ops is not None else 0) * 0.5
-                    score = (performance + ops_bonus) * suitability
-                    candidates.append((score, p))
-            
-            if candidates:
-                candidates.sort(key=lambda x: x[0], reverse=True)
-                best_candidate = candidates[0][1]
-                
-                key = target_pos_key
-                if key == "外野手":
-                    for i in range(1, 4):
-                        if f"外野手{i}" not in assigned_lineup:
-                            key = f"外野手{i}"
-                            break
-                
-                assigned_lineup[key] = best_candidate
-                used_player_ids.add(best_candidate['id'])
-
-        all_target_keys = []
+        open_slots = []
+        outfield_count = 1
         for dp in def_positions:
             if dp == "外野手":
-                for i in range(1, 4):
-                    if f"外野手{i}" not in all_target_keys:
-                        all_target_keys.append(f"外野手{i}")
-                        break
+                open_slots.append(f"外野手{outfield_count}")
+                outfield_count += 1
             else:
-                all_target_keys.append(dp)
+                open_slots.append(dp)
 
-        for key in all_target_keys:
-            if key not in assigned_lineup:
-                remaining = [p for p in fielders_pool if p['id'] not in used_player_ids]
-                if remaining:
-                    remaining.sort(key=lambda x: x['current_performance'] or 0, reverse=True)
-                    assigned_lineup[key] = remaining[0]
-                    used_player_ids.add(remaining[0]['id'])
+        def calc_score(p, slot):
+            target_pos_key = "外野手" if "外野手" in slot else slot
+            suitability = 0
+            f_json = p.get('fielding_json', {})
+            total_games = p.get('games', 0)
+            pa = p.get('pa', 0)
+            
+            if target_pos_key == "指名打者":
+                suitability = 0.5 # デフォルトの適性
+                if total_games > 0 and pa > 50:
+                    def_games = sum(v.get('games', 0) for v in f_json.values())
+                    no_def_games = max(0, total_games - def_games)
+                    dh_ratio = no_def_games / total_games
+                    
+                    if no_def_games > 20 and dh_ratio > 0.5:
+                        suitability = 2.0 # 完全なDHスペシャリスト
+                    elif no_def_games > 10 and dh_ratio > 0.3:
+                        suitability = 1.5 # DH出場が多い
+                    elif no_def_games > 5:
+                        suitability = 1.0 # そこそこDHで出ている
+                    elif no_def_games > 0:
+                        suitability = 0.8
+            else:
+                pos_stats = f_json.get(target_pos_key)
+                if pos_stats:
+                    pos_games = pos_stats.get('games', 0)
+                    if total_games > 0 and (pos_games / total_games) > 0.5:
+                        suitability = 1.2 # 主力ポジション
+                    else:
+                        suitability = 1.0 # 守ったことはある
+                elif target_pos_key in p['position']:
+                    suitability = 0.8 # 登録ポジションだが今季守備実績なし
+                elif target_pos_key == "外野手" and ("外野" in p['position'] or any(x in f_json for x in ["左翼手", "中堅手", "右翼手", "外野手"])):
+                    suitability = 0.7 # 他の外野ポジション経験あり
+            
+            if suitability > 0:
+                performance = p['current_performance'] or 0
+                ops = float(p.get('ops') or 0)
+                ops_bonus = ops * 0.5
+                
+                # DHの場合は打撃をより重視
+                if target_pos_key == "指名打者":
+                    score = (performance + ops * 1.5) * suitability
+                else:
+                    score = (performance + ops_bonus) * suitability
+                return score
+            return -1
+
+        while open_slots:
+            best_match = None
+            max_score = -9999
+            
+            for slot in open_slots:
+                for p in fielders_pool:
+                    if p['id'] in used_player_ids: continue
+                    score = calc_score(p, slot)
+                    if score > max_score:
+                        max_score = score
+                        best_match = (slot, p)
+            
+            if best_match and max_score > -1:
+                slot, p = best_match
+                assigned_lineup[slot] = p
+                used_player_ids.add(p['id'])
+                open_slots.remove(slot)
+            else:
+                break # 誰も適性がない場合
+                
+        # 余ったスロットの処理 (適性0の選手をパフォーマンス順に埋める)
+        if open_slots:
+            remaining_players = [p for p in fielders_pool if p['id'] not in used_player_ids]
+            remaining_players.sort(key=lambda x: x['current_performance'] or 0, reverse=True)
+            for slot in open_slots:
+                if remaining_players:
+                    p = remaining_players.pop(0)
+                    assigned_lineup[slot] = p
+                    used_player_ids.add(p['id'])
 
         return assigned_lineup
 
