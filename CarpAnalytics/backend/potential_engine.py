@@ -123,6 +123,7 @@ def calculate_current_performance(
     farm_stats: dict = None,
     defense: float = 50.0,
     speed: float = 50.0,
+    is_pitcher: bool = False,
     **kwargs
 ) -> float:
     """
@@ -139,6 +140,11 @@ def calculate_current_performance(
             if 'success_rate' in s_stats:
                 speed *= s_stats['success_rate']
 
+    # サンプル数とチーム試合数の取得（重み付けとHRペース計算に使用）
+    pa = kwargs.get('plate_appearances', 0)
+    ip = kwargs.get('innings_pitched', 0)
+    team_games = kwargs.get('team_games', 20) # まだ序盤なのでデフォルト20程度
+
     # 2軍実績の統合
     if batting_avg is None and farm_stats:
         batting_avg = farm_stats.get('avg', 0.0) * 0.8
@@ -148,18 +154,49 @@ def calculate_current_performance(
     defense = sub['defense']
     speed = sub['speed']
 
+    # 投手判定の自動補正: eraがあり、野手成績がほぼない場合は投手として扱う
+    if era is not None and not is_pitcher:
+        if batting_avg is None or (batting_avg == 0 and (home_runs or 0) == 0):
+            is_pitcher = True
+
     score = 50.0
     
-    if batting_avg is not None and (batting_avg > 0 or (home_runs or 0) > 0):
+    if is_pitcher and era is not None:
+        # 投手ロジック: 0.00〜7.00の範囲で評価 (0.00が100点)
+        era_clamped = max(0.00, min(7.00, era))
+        era_score = 100 - (era_clamped / 7.00) * 100
+        score = (era_score * 0.85) + (defense * 0.10) + (speed * 0.05)
+    elif batting_avg is not None and (batting_avg > 0 or (home_runs or 0) > 0):
+        # 野手ロジック (打撃 80%, 守備 10%, 走力 10%)
+        # 打率評価 (0.150 - 0.350)
         avg_score = ((max(0.150, min(0.350, batting_avg)) - 0.150) / (0.350 - 0.150)) * 100
-        hr_score = (min(home_runs or 0, 40) / 40.0) * 100
-        score = (avg_score * 0.30) + (hr_score * 0.20) + (defense * 0.35) + (speed * 0.15)
         
-    elif era is not None and era > 0:
-        era_clamped = max(1.20, min(7.00, era))
-        era_score = 100 - ((era_clamped - 1.20) / (7.00 - 1.20)) * 100
-        score = (era_score * 0.8) + (defense * 0.15) + (speed * 0.05)
+        # 本塁打評価 (チーム試合数に応じたペース評価: 143試合で40本ペースを100点)
+        target_hr_pace = (team_games / 143.0) * 40.0 if team_games > 0 else 5.0
+        hr_score = (min(home_runs or 0, target_hr_pace * 1.5) / target_hr_pace) * 70 + 30 if target_hr_pace > 0 else 50
         
+        # OPS評価 (0.500 - 1.000)
+        ops = kwargs.get('ops', 0)
+        ops_score = ((max(0.500, min(1.000, ops)) - 0.500) / (1.000 - 0.500)) * 100
+        
+        score = (ops_score * 0.40) + (avg_score * 0.20) + (hr_score * 0.20) + (defense * 0.10) + (speed * 0.10)
+    elif era is not None:
+        # フォールバック
+        era_clamped = max(0.00, min(7.00, era))
+        era_score = 100 - (era_clamped / 7.00) * 100
+        score = (era_score * 0.85) + (defense * 0.10) + (speed * 0.05)
+        
+    # サンプル数による信頼度補正 (Phase 2)
+    # 実績が少ない選手はスコアをベースライン(25.0)に引き寄せる
+    if is_pitcher and era is not None:
+        target_ip = team_games * 0.5 # チーム試合数×0.5イニング程度あれば信頼
+        weight = min(1.0, ip / target_ip) if target_ip > 0 else 0
+        score = score * weight + 25.0 * (1.0 - weight)
+    elif batting_avg is not None:
+        target_pa = team_games * 2.0 # チーム試合数×2打席程度あれば信頼
+        weight = min(1.0, pa / target_pa) if target_pa > 0 else 0
+        score = score * weight + 25.0 * (1.0 - weight)
+
     return max(0.0, min(100.0, score))
 
 def calculate_potential(age, years_in_pro, current_performance, position="内野手", situational_data=None, **kwargs):
@@ -194,3 +231,24 @@ def calculate_potential(age, years_in_pro, current_performance, position="内野
 def calculate_potential_score(age, years_in_pro, current_performance, **kwargs):
     """互換性のためのラッパー"""
     return calculate_potential(age, years_in_pro, current_performance, **kwargs)
+
+
+
+def calculate_potential_bounds(pot_axes, age):
+    """
+    ポテンシャルの上限・下限（±1σ）を決定論的に算出する。
+    若手（ageが小さい）ほどブレ幅が大きくなる。
+    """
+    if not pot_axes or len(pot_axes) != 5:
+        return [0]*5, [0]*5
+        
+    # ランダム性を排除し、年齢に基づいた固定のブレ幅を使用
+    std_dev = max(2.0, (35 - age) * 0.8)
+    
+    upper_bounds = []
+    lower_bounds = []
+    for val in pot_axes:
+        upper_bounds.append(int(min(100, val + std_dev)))
+        lower_bounds.append(int(max(0, val - std_dev)))
+        
+    return upper_bounds, lower_bounds

@@ -5,10 +5,12 @@ import PlayerCard from './components/PlayerCard'
 import PotentialMatrix from './components/PotentialMatrix'
 import ComparePanel from './components/ComparePanel'
 import SeasonRankings from './components/SeasonRankings'
-import { Activity, Users, RefreshCw, Search, BarChart2, Trophy } from 'lucide-react'
+import LineupOptimizer from './components/LineupOptimizer'
+import { Activity, Users, RefreshCw, Search, BarChart2, Trophy, Layout } from 'lucide-react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
-const SCRAPE_TOKEN = import.meta.env.VITE_SCRAPE_SECRET_TOKEN || ''
+// ⚠️ 管理エンドポイント（/api/update-*）はバックエンド側でローカルIP制限済みのため
+// フロントエンドからシークレットトークンを送信する必要はありません。
 
 // エラーサニタイズ（詳細情報を表示しない）
 const sanitizeError = (err) => {
@@ -41,7 +43,7 @@ function App() {
   const [error, setError] = useState(null)
   const [filterPosition, setFilterPosition] = useState('全員')
   const [filterTeam, setFilterTeam] = useState('全球団')
-  const [sortByPotential, setSortByPotential] = useState(false)
+  const [sortType, setSortType] = useState('number') // 'number', 'potential', 'area'
   const [searchQuery, setSearchQuery] = useState('')
   const [updating, setUpdating] = useState(false)
   const [updateMsg, setUpdateMsg] = useState(null)
@@ -88,8 +90,12 @@ function App() {
       .filter(p => filterTeam === '全球団' || p.team === filterTeam)
       .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
       .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
-      .sort((a, b) => sortByPotential ? b.potential_score - a.potential_score : 0);
-  }, [players, filterLeague, filterTeam, filterPosition, searchQuery, sortByPotential]);
+      .sort((a, b) => {
+        if (sortType === 'potential') return b.potential_score - a.potential_score;
+        if (sortType === 'area') return b.perf_area - a.perf_area;
+        return 0;
+      });
+  }, [players, filterLeague, filterTeam, filterPosition, searchQuery, sortType]);
 
   const handlePlayerClick = (player) => {
     if (compareMode) {
@@ -117,11 +123,7 @@ function App() {
     setUpdating(true)
     setUpdateMsg(null)
     try {
-      const res = await axios.post(
-        `${API_URL}/api/update-data`,
-        {},
-        { headers: { 'X-Request-Token': SCRAPE_TOKEN } }
-      )
+      const res = await axios.post(`${API_URL}/api/update-data`, {})
       setUpdateMsg({ type: 'success', text: res.data.message })
       fetchPlayers()
     } catch (err) {
@@ -135,11 +137,7 @@ function App() {
     setUpdating(true)
     setUpdateMsg(null)
     try {
-      const res = await axios.post(
-        `${API_URL}/api/update-stats`,
-        {},
-        { headers: { 'X-Request-Token': SCRAPE_TOKEN } }
-      )
+      const res = await axios.post(`${API_URL}/api/update-stats`, {})
       const updated = res.data.last_updated
         ? `（最終更新: ${new Date(res.data.last_updated).toLocaleString('ja-JP')}）`
         : ''
@@ -180,7 +178,7 @@ function App() {
       <header className="header">
         <div>
           <h1 className="title">NPB <span>Insight</span> Pro</h1>
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '20px' }}>
             Reality vs Vision Analysis — {players.length}名のデータ表示中
           </div>
         </div>
@@ -191,6 +189,9 @@ function App() {
             </button>
             <button className={`tab-btn ${view === 'rankings' ? 'active' : ''}`} onClick={() => setView('rankings')}>
               <Trophy size={16} /> 成績ランキング
+            </button>
+            <button className={`tab-btn ${view === 'lineup' ? 'active' : ''}`} onClick={() => setView('lineup')}>
+              <Layout size={16} /> 最適編成
             </button>
           </div>
           <button
@@ -211,15 +212,6 @@ function App() {
             <RefreshCw size={16} className={updating ? 'spinning' : ''} />
             {updating ? '更新中…' : '成績更新'}
           </button>
-          <button
-            className="update-btn"
-            onClick={handleUpdateData}
-            disabled={updating}
-            title="選手ロースターをNPBサイトから再取得（数分）"
-          >
-            <RefreshCw size={16} className={updating ? 'spinning' : ''} />
-            {updating ? '更新中…' : 'データ更新'}
-          </button>
         </div>
       </header>
 
@@ -237,22 +229,22 @@ function App() {
         </div>
       )}
 
-      <div className="grid-layout">
+      <div className="grid-layout" style={view === 'lineup' ? { gridTemplateColumns: '1fr' } : {}}>
         <div className="main-content" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-          {/* フィルター類 */}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          {/* フィルター類 (全てのタブで共通) */}
+          <div className="global-filters" style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div className="filter-bar">
               <button className={`filter-btn ${filterLeague === 'Both' ? 'active' : ''}`} onClick={() => {setFilterLeague('Both'); setFilterTeam('全球団')}}>全連盟</button>
               <button className={`filter-btn ${filterLeague === 'Central' ? 'active' : ''}`} onClick={() => {setFilterLeague('Central'); setFilterTeam('全球団')}}>セ・リーグ</button>
               <button className={`filter-btn ${filterLeague === 'Pacific' ? 'active' : ''}`} onClick={() => {setFilterLeague('Pacific'); setFilterTeam('全球団')}}>パ・リーグ</button>
             </div>
 
-            <div className="search-bar" style={{ marginBottom: 0, minWidth: '200px' }}>
+            <div className="search-bar" style={{ marginBottom: 0, minWidth: '220px' }}>
               <select 
                 value={filterTeam} 
                 onChange={(e) => setFilterTeam(e.target.value)}
-                style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-light)', width: '100%', outline: 'none', fontSize: '0.9rem', cursor: 'pointer' }}
               >
                 {TEAMS.filter(t => filterLeague === 'Both' || t === '全球団' || LEAGUE_TEAMS[filterLeague].includes(t)).map(team => (
                   <option key={team} value={team} style={{ color: '#000' }}>{team}</option>
@@ -260,18 +252,20 @@ function App() {
               </select>
             </div>
             
-            <div className="filter-bar">
-              {POSITIONS.map(pos => (
-                <button
-                  key={pos}
-                  className={`filter-btn ${filterPosition === pos ? 'active' : ''}`}
-                  style={filterPosition === pos && pos !== '全員' ? { borderColor: POSITION_COLORS[pos], color: POSITION_COLORS[pos] } : {}}
-                  onClick={() => setFilterPosition(pos)}
-                >
-                  {pos}
-                </button>
-              ))}
-            </div>
+            {view !== 'lineup' && (
+              <div className="filter-bar">
+                {POSITIONS.map(pos => (
+                  <button
+                    key={pos}
+                    className={`filter-btn ${filterPosition === pos ? 'active' : ''}`}
+                    style={filterPosition === pos && pos !== '全員' ? { borderColor: POSITION_COLORS[pos], color: POSITION_COLORS[pos] } : {}}
+                    onClick={() => setFilterPosition(pos)}
+                  >
+                    {pos}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {view === 'matrix' ? (
@@ -286,8 +280,10 @@ function App() {
                 comparePlayerId={comparePlayer?.id}
               />
             </div>
+          ) : view === 'rankings' ? (
+            <SeasonRankings players={players} />
           ) : (
-            <SeasonRankings />
+            <LineupOptimizer teamName={filterTeam} onSelectTeam={setFilterTeam} />
           )}
 
           {/* 比較パネル */}
@@ -300,7 +296,8 @@ function App() {
           )}
         </div>
 
-        <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        {view !== 'lineup' && (
+          <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="panel">
             {selectedPlayer ? (
               <PlayerCard player={selectedPlayer} seasonStats={selectedPlayerSeasonStats} />
@@ -327,13 +324,17 @@ function App() {
             {/* ソートトグル */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
               <button
-                className={`filter-btn small ${!sortByPotential ? 'active' : ''}`}
-                onClick={() => setSortByPotential(false)}
+                className={`filter-btn small ${sortType === 'number' ? 'active' : ''}`}
+                onClick={() => setSortType('number')}
               >番号順</button>
               <button
-                className={`filter-btn small ${sortByPotential ? 'active' : ''}`}
-                onClick={() => setSortByPotential(true)}
-              >ポテンシャル順 ↓</button>
+                className={`filter-btn small ${sortType === 'potential' ? 'active' : ''}`}
+                onClick={() => setSortType('potential')}
+              >ポテンシャル ↓</button>
+              <button
+                className={`filter-btn small ${sortType === 'area' ? 'active' : ''}`}
+                onClick={() => setSortType('area')}
+              >総合力 ↓</button>
             </div>
 
             <div className="player-list">
@@ -360,7 +361,8 @@ function App() {
               )}
             </div>
           </div>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )

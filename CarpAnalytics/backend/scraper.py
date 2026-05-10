@@ -1,3 +1,7 @@
+"""
+scraper.py
+NPB公式サイトからロースター・選手情報をスクレイピングしてDBに保存する。
+"""
 import requests
 from bs4 import BeautifulSoup
 import database
@@ -6,7 +10,6 @@ import stats_scraper
 import time
 import json
 import logging
-import random
 import os
 import re
 from datetime import date
@@ -16,36 +19,59 @@ logger = logging.getLogger(__name__)
 
 DRAFT_CACHE_FILE = os.path.join(os.path.dirname(__file__), 'draft_cache.json')
 
-def load_draft_cache():
+# R-1: UNIFORM_MAP をモジュールレベル定数に集約（重複排除）
+UNIFORM_MAP = {
+    '広島東洋カープ':             'hiroshima.png',
+    '読売ジャイアンツ':           'giants.png',
+    '阪神タイガース':             'tigers.png',
+    '横浜DeNAベイスターズ':       'baystars.png',
+    '東京ヤクルトスワローズ':     'swallows.png',
+    '中日ドラゴンズ':             'dragons.png',
+    'オリックス・バファローズ':   'buffaloes.png',
+    '千葉ロッテマリーンズ':       'marines.png',
+    '福岡ソフトバンクホークス':   'hawks.png',
+    '東北楽天ゴールデンイーグルス': 'eagles.png',
+    '埼玉西武ライオンズ':         'lions.png',
+    '北海道日本ハムファイターズ': 'fighters.png',
+}
+
+
+def load_draft_cache() -> dict:
     if os.path.exists(DRAFT_CACHE_FILE):
         try:
             with open(DRAFT_CACHE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
-            return {}
+        except Exception as e:
+            logger.warning(f'Failed to load draft cache: {e}')
     return {}
 
-def save_draft_cache(cache):
-    with open(DRAFT_CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(cache, f, ensure_ascii=False, indent=2)
 
-def get_draft_year(player_name, player_id, session, cache):
-    if not player_id: return None
+def save_draft_cache(cache: dict):
+    try:
+        with open(DRAFT_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f'Failed to save draft cache: {e}')
+
+
+def get_draft_year(player_name: str, player_id: str, cache: dict) -> int | None:
+    if not player_id:
+        return None
     if player_id in cache:
         return cache[player_id]
-        
+
     logger.info(f'Fetching detail for {player_name} ({player_id})...')
     url = f'https://npb.jp/bis/players/{player_id}.html'
     try:
         res = stats_scraper._get(url)
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # 1. Look for Draft info
-        draft_label = '\u30c9\u30e9\u30d5\u30c8'
+
+        # 1. ドラフト情報を探す
+        draft_label = 'ドラフト'
         th = soup.find('th', string=draft_label)
         if not th:
-             th = soup.find('th', string=lambda s: s and draft_label in s)
-        
+            th = soup.find('th', string=lambda s: s and draft_label in s)
+
         if th:
             td = th.find_next_sibling('td')
             match = re.search(r'(\d{4})', td.text)
@@ -53,355 +79,300 @@ def get_draft_year(player_name, player_id, session, cache):
                 year = int(match.group(1))
                 cache[player_id] = year
                 return year
-                
-        # 2. Look for first year in stats table
+
+        # 2. 成績テーブルの初年度から推定
         first_year_td = soup.select_one('.registerStats .year')
         if first_year_td:
             try:
                 year = int(first_year_td.text.strip())
                 cache[player_id] = year - 1
                 return year - 1
-            except:
+            except ValueError:
                 pass
     except Exception as e:
         logger.error(f'Error fetching detail for {player_id}: {e}')
-        
+
     return None
 
-def scrape_real_data(target_team_code=None):
-    database.init_db()
-    
-    team_codes = [target_team_code] if target_team_code else stats_scraper.TEAM_CODE_MAP.keys()
-    
-    all_players_collected = []
+
+# ─────────────────────────────────────
+# M-1: 共通ヘルパー関数（scrape_real_data / update_players_from_db の重複を解消）
+# ─────────────────────────────────────
+
+def _build_axes(pos: str, batting: dict | None, pitching: dict | None,
+                f_positions: dict, p_farm: dict, current_perf: float) -> list[float]:
+    """守備・打撃・投球データからパフォーマンス軸（5次元）を構築する"""
+    if '投手' not in pos:
+        batting_avg = batting['batting_avg'] if batting else None
+        home_runs   = batting['home_runs']   if batting else None
+        m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
+        m_hr  = home_runs  if home_runs  is not None else (p_farm.get('hr', 0) * 0.7)
+        m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
+
+        power_score = 50.0
+        if m_slg:
+            power_score = (m_slg - 0.300) * 150 + 50
+        if m_hr:
+            power_score += m_hr * 2
+
+        meet_score = 50.0
+        if m_avg:
+            meet_score = (m_avg - 0.200) * 250 + 40
+
+        return [
+            max(10, min(100, power_score)),
+            max(10, min(100, meet_score)),
+            min(100, 50 + (p_farm.get('games', 0) / 10)),
+            potential_engine.calculate_subscores(f_positions)['defense'],
+            current_perf,
+        ]
+    else:
+        ip = pitching['innings_pitched'] if pitching else 0
+        so = pitching['strikeouts']      if pitching else 0
+        bb = pitching['walks']           if pitching else 0
+        gs = pitching['games']           if pitching else 1
+
+        k9  = (so * 9 / ip)  if ip > 0 else 5.0
+        bb9 = (bb * 9 / ip)  if ip > 0 else 3.5
+
+        stuff    = (k9 - 4.0) * 12 + 40
+        control  = 100 - (bb9 * 12)
+        stamina  = (ip / gs) * 15 + 10 if gs > 0 else 30
+        breaking = 50 + (k9 - 5.0) * 5  # 簡易的な変化球評価
+
+        return [
+            max(10, min(100, stuff)),
+            max(10, min(100, control)),
+            max(10, min(100, stamina)),
+            max(10, min(100, breaking)),
+            current_perf,
+        ]
+
+
+def _build_player_data(team_name: str, player_name: str, pos: str, age: int, years: int,
+                       batting: dict | None, pitching: dict | None,
+                       f_positions: dict, p_farm: dict) -> dict:
+    """選手の全スコア・メタデータ辞書を構築して返す"""
+    batting_avg = batting['batting_avg']  if batting  else None
+    home_runs   = batting['home_runs']    if batting  else None
+    era         = pitching['era']         if pitching else None
+
+    is_pitcher = '投手' in pos
+    current_perf = potential_engine.calculate_current_performance(
+        batting_avg=batting_avg,
+        home_runs=home_runs,
+        era=era,
+        positions_data=f_positions,
+        farm_stats=p_farm,
+        speed=50,
+        is_pitcher=is_pitcher,
+        ops=batting['ops']               if batting  else 0,
+        plate_appearances=batting['plate_appearances'] if batting else 0,
+        innings_pitched=pitching['innings_pitched']    if pitching else 0,
+        team_games=batting['team_games'] if batting else (pitching['team_games'] if pitching else 1),
+    )
+
+    pot_score = potential_engine.calculate_potential_score(
+        age=age, years_in_pro=years, current_performance=current_perf, position=pos
+    )
+
+    perf_axes = _build_axes(pos, batting, pitching, f_positions, p_farm, current_perf)
+
+    sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(
+        perf_axes, is_pitcher=is_pitcher
+    )
+
+    # ポテンシャル軸はランダム性を排除し実績軸の形状から決定論的に算出
+    pot_factor = pot_score / current_perf if current_perf > 0 else 1.2
+    pot_axes   = [max(10, min(100, x * pot_factor)) for x in perf_axes]
+
+    pot_upper, pot_lower = potential_engine.calculate_potential_bounds(pot_axes, age)
+
+    perf_area = potential_engine.calculate_chart_area(perf_axes)
+    pot_area  = potential_engine.calculate_chart_area(pot_axes)
+
+    # 一芸特化（Unbalanced）判定: 最大値と最小値の差が40以上
+    is_unbalanced = (max(perf_axes) - min(perf_axes)) > 40
+
+    # 勝負強さ（Clutch）判定
+    rbi       = batting['rbi'] if batting else 0
+    is_clutch = False
+    if not era and batting:
+        expected_rbi = (home_runs or 0) * 1.5 + 5
+        if rbi > expected_rbi and rbi > 10:
+            is_clutch = True
+    elif era:
+        wins = pitching['wins'] if pitching else 0
+        if era < 3.0 and wins > 3:
+            is_clutch = True
+
+    # 収束率・覚醒判定
+    convergence  = (perf_area / pot_area) if pot_area > 0 else 0.0
+    is_awakened  = convergence > 0.82 or is_clutch
+
+    # ブレイクアウト（覚醒の兆し）判定
+    is_breaking_out = False
+    if age <= 25:
+        if 0.65 < convergence <= 0.82:
+            is_breaking_out = True
+        elif pot_score > 85 and current_perf < 60:
+            is_breaking_out = True
+
+    uniform_file = UNIFORM_MAP.get(team_name, 'hiroshima.png')
+
+    return {
+        'team':                team_name,
+        'name':                player_name,
+        'position':            pos,
+        'age':                 age,
+        'years_in_pro':        years,
+        'current_performance': current_perf,
+        'potential_score':     pot_score,
+        'batting_avg':         batting_avg,
+        'home_runs':           home_runs,
+        'era':                 era,
+        'perf_area':           int(perf_area),
+        'pot_area':            int(pot_area),
+        'convergence_rate':    round(convergence * 100, 1),
+        'perf_axes_json':      json.dumps(perf_axes),
+        'pot_axes_json':       json.dumps(pot_axes),
+        'pot_axes_upper_json': json.dumps(pot_upper),
+        'pot_axes_lower_json': json.dumps(pot_lower),
+        'fielding_json':       json.dumps(f_positions),
+        'farm_stats_json':     json.dumps(p_farm),
+        'similarity_name':     sim_name,
+        'similarity_score':    sim_score,
+        'style_tag':           style_tag,
+        'is_breaking_out':     is_breaking_out,
+        'ghost_axes_json':     json.dumps(ghost_axes),
+        'is_awakened':         is_awakened,
+        'is_unbalanced':       is_unbalanced,
+        'image_url':           f'/uniforms/{uniform_file}',
+    }
+
+
+# ─────────────────────────────────────
+# メイン処理
+# ─────────────────────────────────────
+
+def scrape_real_data(target_team_code: str | None = None, skip_init: bool = False):
+    """NPBサイトから全チームのロースターをスクレイピングしてDBに保存する"""
+    if not skip_init:
+        database.init_db()
+
+    team_codes  = [target_team_code] if target_team_code else stats_scraper.TEAM_CODE_MAP.keys()
     draft_cache = load_draft_cache()
-    session = requests.Session()
-    
+    all_players: list[dict] = []
+
     for team_code in team_codes:
         team_name = stats_scraper.TEAM_CODE_MAP.get(team_code)
         logger.info(f'Scraping {team_name}...')
-        
-        url = f'https://npb.jp/bis/teams/rst_{team_code}.html'
-        res = stats_scraper._get(url)
+
+        url  = f'https://npb.jp/bis/teams/rst_{team_code}.html'
+        res  = stats_scraper._get(url)
         soup = BeautifulSoup(res.text, 'html.parser')
-        
-        fielding = stats_scraper.scrape_fielding_stats(team_code)
+
+        fielding   = stats_scraper.scrape_fielding_stats(team_code)
         farm_stats = stats_scraper.scrape_farm_stats(team_code)
-        
+
         rows = soup.find_all('tr')
         current_pos_category = ''
-        team_players = []
-        
+        team_players: list[dict] = []
+
         for row in rows:
             if 'rosterMainHead' in row.get('class', []):
                 th_pos = row.find('th', class_='rosterPos')
                 if th_pos:
                     current_pos_category = th_pos.text.strip()
                 continue
-            
+
             if 'rosterPlayer' not in row.get('class', []):
                 continue
-            
-            if any(x in current_pos_category for x in ['\u76e3\u7763', '\u30b3\u30fc\u30c1']):
+
+            if any(x in current_pos_category for x in ['監督', 'コーチ']):
                 continue
 
             tds = row.find_all('td')
-            if len(tds) < 3: continue
-            
-            name_raw = tds[1].text.strip()
-            player_name = stats_scraper.normalize_name(name_raw)
-            pos = current_pos_category
-            
-            a_tag = tds[1].find('a')
-            player_id = ''
-            if a_tag:
-                player_id = a_tag['href'].split('/')[-1].replace('.html', '')
+            if len(tds) < 3:
+                continue
 
+            name_raw     = tds[1].text.strip()
+            player_name  = stats_scraper.normalize_name(name_raw)
+            pos          = current_pos_category
+
+            a_tag     = tds[1].find('a')
+            player_id = a_tag['href'].split('/')[-1].replace('.html', '') if a_tag else ''
+
+            # 年齢計算
             birth_str = tds[2].text.strip()
-            age = 25
+            age   = 25
             years = 5
-            today = date(2026, 5, 4)
+            today = date.today()
             if birth_str and '.' in birth_str:
                 try:
-                    parts = birth_str.split('.')
+                    parts      = birth_str.split('.')
                     birth_date = date(int(parts[0]), int(parts[1]), int(parts[2]))
-                    age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                    age        = today.year - birth_date.year - (
+                        (today.month, today.day) < (birth_date.month, birth_date.day)
+                    )
                 except Exception as e:
                     logger.error(f'Error calculating age for {player_name}: {e}')
 
-            draft_year = get_draft_year(player_name, player_id, session, draft_cache)
+            draft_year = get_draft_year(player_name, player_id, draft_cache)
             if draft_year:
                 years = 2026 - draft_year
             else:
-                if age <= 22:
-                    years = max(1, age - 18 + 1)
-                else:
-                    years = max(1, age - 22 + 1)
+                years = max(1, age - 22 + 1) if age > 22 else max(1, age - 18 + 1)
 
-            stats = database.get_player_season_stats(player_name)
-            batting = next((s for s in stats if s['stat_type'] == 'batting'), None)
+            stats    = database.get_player_season_stats(player_name)
+            batting  = next((s for s in stats if s['stat_type'] == 'batting'),  None)
             pitching = next((s for s in stats if s['stat_type'] == 'pitching'), None)
-            
-            batting_avg = batting['batting_avg'] if batting else None
-            home_runs = batting['home_runs'] if batting else None
-            era = pitching['era'] if pitching else None
-            
-            p_farm = farm_stats.get(player_name, {})
-            f_data = fielding.get(player_name, {})
+
+            f_data      = fielding.get(player_name, {})
             f_positions = f_data.get('positions', {})
-            
-            current_perf = potential_engine.calculate_current_performance(
-                batting_avg=batting_avg,
-                home_runs=home_runs,
-                era=era,
-                positions_data=f_positions,
-                farm_stats=p_farm,
-                speed=50 
+            p_farm      = farm_stats.get(player_name, {})
+
+            player_data = _build_player_data(
+                team_name, player_name, pos, age, years, batting, pitching, f_positions, p_farm
             )
-            
-            pot_score = potential_engine.calculate_potential_score(
-                age=age, years_in_pro=years, current_performance=current_perf
-            )
-            
-            if not era:
-                m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
-                m_hr = home_runs if home_runs is not None else (p_farm.get('hr', 0) * 0.7)
-                m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
-                
-                power_score = 50
-                if m_slg:
-                    power_score = (m_slg - 0.300) * 150 + 50
-                if m_hr:
-                    power_score += m_hr * 2
-                
-                meet_score = 50
-                if m_avg:
-                    meet_score = (m_avg - 0.200) * 250 + 40
-
-                perf_axes = [
-                    max(10, min(100, power_score)), 
-                    max(10, min(100, meet_score)),  
-                    min(100, 50 + (p_farm.get('games', 0) / 10)), 
-                    potential_engine.calculate_subscores(f_positions)['defense'],
-                    current_perf
-                ]
-                sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=False)
-            else:
-                ip = pitching['innings_pitched'] if pitching else 0
-                so = pitching['strikeouts'] if pitching else 0
-                bb = pitching['walks'] if pitching else 0
-                gs = pitching['games'] if pitching else 1
-                
-                k9 = (so * 9 / ip) if ip > 0 else 5.0
-                bb9 = (bb * 9 / ip) if ip > 0 else 3.5
-                
-                stuff = (k9 - 4.0) * 12 + 40
-                control = 100 - (bb9 * 12)
-                stamina = (ip / gs) * 15 + 10 if gs > 0 else 30
-                breaking = (stuff + control) / 2 + random.uniform(-5, 5)
-                
-                perf_axes = [
-                    max(10, min(100, stuff)),    
-                    max(10, min(100, control)),  
-                    max(10, min(100, stamina)),  
-                    max(10, min(100, breaking)), 
-                    current_perf
-                ]
-                sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
-            
-            perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
-            pot_axes = [max(10, min(100, pot_score)) for _ in range(5)] # 歪みを修正
-            
-            perf_area = potential_engine.calculate_chart_area(perf_axes)
-            pot_area = potential_engine.calculate_chart_area(pot_axes)
-            
-            # 一芸特化（Unbalanced）の判定: 最大値と最小値の差が40以上
-            is_unbalanced = (max(perf_axes) - min(perf_axes)) > 40
-
-            # 勝負強さ（Clutch）の判定: 打点(RBI)が本塁打数に対して高いか
-            rbi = batting['rbi'] if batting else 0
-            is_clutch = False
-            if not era and batting:
-                expected_rbi = (home_runs or 0) * 1.5 + 5
-                if rbi > expected_rbi and rbi > 10:
-                    is_clutch = True
-            elif era:
-                # 投手の場合は防御率が良く、かつ勝利数が多い場合など（簡易判定）
-                wins = pitching['wins'] if pitching else 0
-                if era < 3.0 and wins > 3:
-                    is_clutch = True
-
-            # 覚醒判定: 収束率が高い or 勝負強さがある
-            convergence = (perf_area / pot_area) if pot_area > 0 else 0
-            is_awakened = convergence > 0.82 or is_clutch
-
-            # ブレイクアウト（覚醒の兆し）判定: 若手かつ収束率が一定以上、または未完の大器
-            is_breaking_out = False
-            if age <= 25:
-                if 0.65 < convergence <= 0.82: # 収束に向かっている若手
-                    is_breaking_out = True
-                elif pot_score > 85 and current_perf < 60: # 潜在能力は高いがまだ実績が低い
-                    is_breaking_out = True
-
-            player_data = {
-                'team': team_name, 'name': player_name, 'position': pos,
-                'age': age, 'years_in_pro': years,
-                'current_performance': current_perf, 'potential_score': pot_score,
-                'batting_avg': batting_avg, 'home_runs': home_runs, 'era': era,
-                'perf_area': int(perf_area), 'pot_area': int(pot_area),
-                'convergence_rate': round((convergence * 100), 1),
-                'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
-                'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
-                'similarity_name': sim_name, 'similarity_score': sim_score,
-                'style_tag': style_tag,
-                'is_breaking_out': is_breaking_out,
-                'ghost_axes_json': json.dumps(ghost_axes),
-                'is_awakened': is_awakened,
-                'is_unbalanced': is_unbalanced,
-                'image_url': f'https://api.dicebear.com/7.x/avataaars/svg?seed={player_name}'
-            }
             team_players.append(player_data)
             time.sleep(0.01)
-            
+
         save_draft_cache(draft_cache)
-        all_players_collected.extend(team_players)
+        all_players.extend(team_players)
         logger.info(f'Collected {len(team_players)} players for {team_name}')
         time.sleep(0.1)
 
-    database.save_players(all_players_collected)
-    logger.info(f'Total {len(all_players_collected)} players saved to database.')
+    database.save_players(all_players)
+    logger.info(f'Total {len(all_players)} players saved to database.')
+
 
 def update_players_from_db():
+    """DBに既存の選手データを最新の今季成績で再計算して更新する"""
     logger.info("Updating player metrics from latest season stats...")
     players = database.get_all_players()
-    updated_players = []
-    
+    updated: list[dict] = []
+
     for p in players:
         player_name = p['name']
-        age = p.get('age', 25)
-        years = p.get('years_in_pro', 5)
-        pos = p['position']
-        
-        stats = database.get_player_season_stats(player_name)
-        batting = next((s for s in stats if s['stat_type'] == 'batting'), None)
+        age         = p.get('age', 25)
+        years       = p.get('years_in_pro', 5)
+        pos         = p['position']
+
+        stats    = database.get_player_season_stats(player_name)
+        batting  = next((s for s in stats if s['stat_type'] == 'batting'),  None)
         pitching = next((s for s in stats if s['stat_type'] == 'pitching'), None)
-        
-        batting_avg = batting['batting_avg'] if batting else None
-        home_runs = batting['home_runs'] if batting else None
-        era = pitching['era'] if pitching else None
-        
-        p_farm = json.loads(p['farm_stats_json']) if p.get('farm_stats_json') else {}
-        f_positions = json.loads(p['fielding_json']) if p.get('fielding_json') else {}
-        
-        current_perf = potential_engine.calculate_current_performance(
-            batting_avg=batting_avg,
-            home_runs=home_runs,
-            era=era,
-            positions_data=f_positions,
-            farm_stats=p_farm,
-            speed=50 
+
+        f_positions = json.loads(p['fielding_json'])    if p.get('fielding_json')    else {}
+        p_farm      = json.loads(p['farm_stats_json'])  if p.get('farm_stats_json')  else {}
+
+        player_data = _build_player_data(
+            p['team'], player_name, pos, age, years, batting, pitching, f_positions, p_farm
         )
-        
-        pot_score = potential_engine.calculate_potential_score(
-            age=age, years_in_pro=years, current_performance=current_perf, position=pos
-        )
-        
-        if not era:
-            m_avg = batting_avg if batting_avg is not None else (p_farm.get('avg', 0) * 0.8)
-            m_hr = home_runs if home_runs is not None else (p_farm.get('hr', 0) * 0.7)
-            m_slg = (batting['slg_pct'] if batting else None) or (p_farm.get('ops', 0) * 0.6)
-            
-            power_score = 50
-            if m_slg:
-                power_score = (m_slg - 0.300) * 150 + 50
-            if m_hr:
-                power_score += m_hr * 2
-            
-            meet_score = 50
-            if m_avg:
-                meet_score = (m_avg - 0.200) * 250 + 40
+        updated.append(player_data)
 
-            perf_axes = [
-                max(10, min(100, power_score)), 
-                max(10, min(100, meet_score)),  
-                min(100, 50 + (p_farm.get('games', 0) / 10)), 
-                potential_engine.calculate_subscores(f_positions)['defense'],
-                current_perf
-            ]
-            sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=False)
-        else:
-            ip = pitching['innings_pitched'] if pitching else 0
-            so = pitching['strikeouts'] if pitching else 0
-            bb = pitching['walks'] if pitching else 0
-            gs = pitching['games'] if pitching else 1
-            
-            k9 = (so * 9 / ip) if ip > 0 else 5.0
-            bb9 = (bb * 9 / ip) if ip > 0 else 3.5
-            
-            stuff = (k9 - 4.0) * 12 + 40
-            control = 100 - (bb9 * 12)
-            stamina = (ip / gs) * 15 + 10 if gs > 0 else 30
-            breaking = (stuff + control) / 2 + random.uniform(-5, 5)
-            
-            perf_axes = [
-                max(10, min(100, stuff)),    
-                max(10, min(100, control)),  
-                max(10, min(100, stamina)),  
-                max(10, min(100, breaking)), 
-                current_perf
-            ]
-            sim_name, sim_score, ghost_axes, style_tag = potential_engine.find_best_role_model(perf_axes, is_pitcher=True)
-        
-        perf_axes = [max(10, min(100, x + random.uniform(-1, 1))) for x in perf_axes]
-        pot_axes = [max(10, min(100, pot_score)) for _ in range(5)]
-        
-        perf_area = potential_engine.calculate_chart_area(perf_axes)
-        pot_area = potential_engine.calculate_chart_area(pot_axes)
-        
-        is_unbalanced = (max(perf_axes) - min(perf_axes)) > 40
-
-        rbi = batting['rbi'] if batting else 0
-        is_clutch = False
-        if not era and batting:
-            expected_rbi = (home_runs or 0) * 1.5 + 5
-            if rbi > expected_rbi and rbi > 10:
-                is_clutch = True
-        elif era:
-            wins = pitching['wins'] if pitching else 0
-            if era < 3.0 and wins > 3:
-                is_clutch = True
-
-        convergence = (perf_area / pot_area) if pot_area > 0 else 0
-        is_awakened = convergence > 0.82 or is_clutch
-
-        is_breaking_out = False
-        if age <= 25:
-            if 0.65 < convergence <= 0.82:
-                is_breaking_out = True
-            elif pot_score > 85 and current_perf < 60:
-                is_breaking_out = True
-
-        player_data = {
-            'team': p['team'], 'name': player_name, 'position': pos,
-            'age': age, 'years_in_pro': years,
-            'current_performance': current_perf, 'potential_score': pot_score,
-            'batting_avg': batting_avg, 'home_runs': home_runs, 'era': era,
-            'perf_area': int(perf_area), 'pot_area': int(pot_area),
-            'convergence_rate': round((convergence * 100), 1),
-            'perf_axes_json': json.dumps(perf_axes), 'pot_axes_json': json.dumps(pot_axes),
-            'fielding_json': json.dumps(f_positions), 'farm_stats_json': json.dumps(p_farm),
-            'similarity_name': sim_name, 'similarity_score': sim_score,
-            'style_tag': style_tag,
-            'is_breaking_out': is_breaking_out,
-            'ghost_axes_json': json.dumps(ghost_axes),
-            'is_awakened': is_awakened,
-            'is_unbalanced': is_unbalanced,
-            'image_url': p['image_url']
-        }
-        updated_players.append(player_data)
-        
-    database.save_players(updated_players)
-    logger.info(f"Updated {len(updated_players)} players in DB.")
+    database.save_players(updated)
+    logger.info(f"Updated {len(updated)} players in DB.")
 
 
 if __name__ == '__main__':
