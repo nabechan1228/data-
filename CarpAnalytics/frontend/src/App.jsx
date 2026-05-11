@@ -8,7 +8,7 @@ import SeasonRankings from './components/SeasonRankings'
 import LineupOptimizer from './components/LineupOptimizer'
 import { Activity, Users, RefreshCw, Search, BarChart2, Trophy, Layout } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 // ⚠️ 管理エンドポイント（/api/update-*）はバックエンド側でローカルIP制限済みのため
 // フロントエンドからシークレットトークンを送信する必要はありません。
 
@@ -340,23 +340,23 @@ function App() {
             <div className="player-list">
               {filteredPlayers.length === 0 ? (
                 <p style={{ color: 'var(--text-muted)', padding: '10px' }}>選手が見つかりません</p>
-              ) : filteredPlayers.slice(0, 100).map(p => (
+              ) : filteredPlayers.slice(0, 50).map(p => (
                 <div
                   key={p.id}
                   className={`list-item ${selectedPlayer?.id === p.id ? 'active' : ''} ${comparePlayer?.id === p.id ? 'compare-active' : ''}`}
                   onClick={() => handlePlayerClick(p)}
                 >
                   <span className="list-item-dot" style={{ backgroundColor: POSITION_COLORS[p.position] || '#E50012' }} />
-                  <span className="list-item-name">
+                  <span className="list-item-name" style={{ flex: 1, textAlign: 'left' }}>
                     {p.name}
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '4px' }}>({p.position})</span>
                   </span>
-                  <span className="list-item-score">P: {Math.round(p.potential_score)}</span>
+                  <span className="list-item-score" translate="no">P: {Math.round(p.potential_score)}</span>
                 </div>
               ))}
-              {filteredPlayers.length > 100 && (
+              {filteredPlayers.length > 50 && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px' }}>
-                  ほか {filteredPlayers.length - 100} 名…（検索で絞り込めます）
+                  ほか {filteredPlayers.length - 50} 名…（検索で絞り込めます）
                 </p>
               )}
             </div>

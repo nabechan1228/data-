@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Trophy, Filter, ChevronDown, Award, Activity } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
 
 const BATTING_CATEGORIES = [
   { id: 'batting_avg', label: '打率', format: (v) => v.toFixed(3), unit: '' },
@@ -97,12 +97,15 @@ const SeasonRankings = ({ players = [] }) => {
     
     // 規定フィルタの適用
     if (onlyQualified) {
+      const statsMap = new Map();
+      stats.forEach(s => {
+        const key = `${s.player_name.replace(/[\s　]/g, '')}_${s.stat_type}`;
+        statsMap.set(key, s);
+      });
+
       filtered = filtered.filter(p => {
         const pName = p.name.replace(/[\s　]/g, '');
-        const pStat = stats.find(s => 
-          s.player_name.replace(/[\s　]/g, '') === pName && 
-          (isPitcherCategory ? s.stat_type === 'pitching' : s.stat_type === 'batting')
-        );
+        const pStat = statsMap.get(`${pName}_${isPitcherCategory ? 'pitching' : 'batting'}`);
         if (!pStat) return false;
         const tg = pStat.team_games || 0;
         if (tg <= 0) return false;

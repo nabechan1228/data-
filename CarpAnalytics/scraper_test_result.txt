@@ -1,0 +1,7 @@
+Testing batting stats for c...
+Successfully scraped 42 batters.
+First batter: 赤木晴哉
+
+Testing fielding stats for c...
+Successfully scraped fielding data for 39 players.
+First player: 坂倉将吾, Positions: ['一塁手', '三塁手', '捕手']

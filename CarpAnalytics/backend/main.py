@@ -62,7 +62,7 @@ logger.info("APScheduler started. Daily stats update scheduled at 05:00 JST.")
 # ─────────────────────────────────────
 # 許可するオリジンを.envから取得
 # ─────────────────────────────────────
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174")
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174")
 ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",")]
 
 app.add_middleware(
@@ -351,4 +351,5 @@ def update_stats(request: Request, _: None = Depends(verify_token)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8001, reload=True)
+    # hostを0.0.0.0に変更してIPv4/IPv6の両方に対応
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)

@@ -54,7 +54,8 @@ const PotentialMatrix = ({ players, onSelectPlayer, selectedPlayerId, comparePla
           
           <Scatter 
             name="Players" 
-            data={data} 
+            data={data.length > 600 ? data.slice(0, 600) : data} 
+            isAnimationActive={false}
             onClick={(e) => {
               const player = players.find(p => p.id === e.id);
               if (player) onSelectPlayer(player);

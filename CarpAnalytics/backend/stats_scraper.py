@@ -43,16 +43,16 @@ def _get(url: str, max_retries: int = 3) -> requests.Response:
         try:
             res = requests.get(url, headers=headers, timeout=15)
             if res.status_code == 200:
-                # 明示的にShift_JIS（cp932）を指定する場合が多いNPBへの対応
-                content_sample = res.content[:4096].lower()
+                # 明示的にcharsetを確認
+                content_sample = res.content[:8192].lower()
                 if b'charset=utf-8' in content_sample or b'charset="utf-8"' in content_sample:
                     res.encoding = 'utf-8'
                 elif b'shift_jis' in content_sample or b'cp932' in content_sample or b'ms932' in content_sample:
                     res.encoding = 'cp932'
                 else:
-                    # requestsの推測を使用
+                    # apparent_encodingがISO-8859-1の場合はcp932(Shift_JIS)である可能性が高い
                     res.encoding = res.apparent_encoding
-                    if res.encoding == 'ISO-8859-1': # 誤判定の定番
+                    if res.encoding == 'ISO-8859-1' or not res.encoding:
                         res.encoding = 'cp932'
                 return res
             logger.warning(f"HTTP {res.status_code} for {url}, attempt {attempt + 1}")
@@ -183,9 +183,12 @@ def scrape_fielding_stats(team_code: str) -> dict:
     fielding_data = {}
     
     current_pos = "Unknown"
-    for elem in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'table', 'div', 'th']):
-        if elem.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'caption', 'th'] or 'stats_title' in elem.get('class', []) or 'stitle' in elem.get('class', []):
+    # ページ内の要素を走査
+    for elem in soup.find_all(['h3', 'h4', 'h5', 'h6', 'caption', 'table', 'div', 'th']):
+        # ポジション見出しの特定
+        if elem.name in ['h3', 'h4', 'h5', 'h6', 'caption', 'th'] or 'stats_title' in elem.get('class', []) or 'stitle' in elem.get('class', []):
             text = elem.text.strip()
+            # ポジション名が含まれているか確認
             for p in ["投手", "捕手", "一塁手", "二塁手", "三塁手", "遊撃手", "外野手"]:
                 if p in text and len(text) < 15:
                     current_pos = p
@@ -193,10 +196,12 @@ def scrape_fielding_stats(team_code: str) -> dict:
             if elem.name != 'table':
                 continue
 
+        # テーブルの解析
         if elem.name == 'table':
             pos_key = current_pos
             all_rows = elem.find_all('tr')
             
+            # ヘッダー行の特定
             header_row = None
             for r in all_rows:
                 if any(k in r.text for k in ['選手', '守備率', '刺殺']):
@@ -213,7 +218,7 @@ def scrape_fielding_stats(team_code: str) -> dict:
                 if len(tds) < 5: continue
                 try:
                     raw_name = tds[headers.index('選手')].text.strip()
-                    if not raw_name or raw_name in ('チーム合計', '合計'): continue
+                    if not raw_name or raw_name in ('チーム合計', '合計', '選手'): continue
                     p_name = normalize_name(raw_name)
                     
                     if p_name not in fielding_data:
@@ -230,7 +235,7 @@ def scrape_fielding_stats(team_code: str) -> dict:
                         'games': _safe_int(col('試合')) or 0
                     }
                 except Exception as e:
-                    logger.warning(f'Failed to parse fielding row for {pos}: {e}')
+                    logger.warning(f'Failed to parse fielding row for {pos_key}: {e}')
                     continue
     return fielding_data
 
