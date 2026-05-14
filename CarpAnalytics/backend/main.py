@@ -6,14 +6,25 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from pydantic import BaseModel, field_validator
 import database
 import subprocess
 import os
 import logging
 import re
+import hashlib
 
 load_dotenv()
+
+
+def _env_truthy(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+REQUIRE_ADMIN_TOKEN = _env_truthy("REQUIRE_ADMIN_TOKEN")
+ADMIN_ENDPOINTS_DISABLED = _env_truthy("ADMIN_ENDPOINTS_DISABLED")
+TRUST_PROXY_HEADERS = _env_truthy("TRUST_PROXY_HEADERS")
+_TRUSTED_PROXY_RAW = os.getenv("TRUSTED_PROXY_HOSTS", "127.0.0.1,::1")
+TRUSTED_PROXY_HOSTS = {h.strip() for h in _TRUSTED_PROXY_RAW.split(",") if h.strip()}
 
 # ロギング設定
 logging.basicConfig(
@@ -79,11 +90,36 @@ app.add_middleware(
 _ADMIN_PATHS = {"/api/update-data", "/api/update-stats"}
 _LOCALHOST_IPS = {"127.0.0.1", "::1"}
 
+
+def _xff_leftmost_client(xff: str) -> str | None:
+    if not xff or not xff.strip():
+        return None
+    parts = [p.strip() for p in xff.split(",") if p.strip()]
+    return parts[0] if parts else None
+
+
+def effective_client_host(request: Request) -> str:
+    """
+    管理系の IP 判定用。TRUST_PROXY_HEADERS かつ接続元が TRUSTED_PROXY_HOSTS のときだけ
+    X-Forwarded-For の左端（クライアント側）を採用する。それ以外は request.client.host。
+    """
+    direct = (request.client.host if request.client else "") or ""
+    if TRUST_PROXY_HEADERS and direct in TRUSTED_PROXY_HOSTS:
+        xff = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+        if xff:
+            left = _xff_leftmost_client(xff)
+            if left:
+                return left
+    return direct
+
+
 @app.middleware("http")
 async def restrict_admin_endpoints(request: Request, call_next):
     """管理用エンドポイントはローカルホストからのアクセスのみ許可する"""
     if request.url.path in _ADMIN_PATHS:
-        client_host = request.client.host if request.client else ""
+        if ADMIN_ENDPOINTS_DISABLED:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Not Found"})
+        client_host = effective_client_host(request)
         if client_host not in _LOCALHOST_IPS:
             logger.warning(
                 f"Admin endpoint access denied for {client_host} -> {request.url.path}"
@@ -135,16 +171,37 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ─────────────────────────────────────
 SECRET_TOKEN = os.getenv("SCRAPE_SECRET_TOKEN", "")
 
+
+def _redact_token_for_log(raw: str | None) -> str:
+    """ログに生のシークレットを出さない（短いプレフィックス + ハッシュ先頭）。"""
+    if not raw:
+        return "(empty)"
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:10]
+    prefix = raw[:4] if len(raw) >= 4 else raw[:1]
+    return f"prefix={prefix!r} sha256[:10]={digest}"
+
+
 def verify_token(x_request_token: str | None = Header(default=None)):
     """
-    トークンを検証する。ただし、ローカルIP制限ミドルウェアで保護されているため、
-    ヘッダーが欠落していてもエラーにせず、あれば検証する形にする。
+    管理 POST 用トークン検証。
+    REQUIRE_ADMIN_TOKEN=true のときは X-Request-Token 必須かつ SCRAPE_SECRET_TOKEN と一致必須。
+    それ以外はヘッダーがある場合のみ検証し、未送信はローカル IP 制限に委ねる。
     """
+    if REQUIRE_ADMIN_TOKEN:
+        if not SECRET_TOKEN:
+            logger.error("REQUIRE_ADMIN_TOKEN is set but SCRAPE_SECRET_TOKEN is empty.")
+            raise HTTPException(
+                status_code=503,
+                detail="サーバー設定が不完全です（シークレット未設定）。",
+            )
+        if not x_request_token or x_request_token != SECRET_TOKEN:
+            logger.warning(f"Admin token missing or invalid ({_redact_token_for_log(x_request_token)})")
+            raise HTTPException(status_code=401, detail="認証トークンが無効です。")
+        return
     if x_request_token:
         if not SECRET_TOKEN or x_request_token != SECRET_TOKEN:
-            logger.warning(f"Invalid token attempt: {x_request_token}")
+            logger.warning(f"Invalid token attempt ({_redact_token_for_log(x_request_token)})")
             raise HTTPException(status_code=401, detail="認証トークンが無効です。")
-    # トークンがない場合は、ミドルウェアのIP制限を信頼して通過させる
 
 # ─────────────────────────────────────
 # Pydantic バリデーション
@@ -189,6 +246,26 @@ def _validate_name(name: str) -> str:
 # エンドポイント
 # ─────────────────────────────────────
 
+
+@app.get("/api/health")
+def health():
+    """DB 接続と成績メタの簡易ヘルスチェック（監視用）。"""
+    try:
+        database.ping_db()
+        last_updated = database.get_stats_last_updated()
+        return {
+            "status": "ok",
+            "database": "ok",
+            "stats_last_updated": last_updated,
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "error", "database": "unavailable"},
+        )
+
+
 @app.get("/api/players")
 @limiter.limit("30/minute")
 def get_players(request: Request):
@@ -209,8 +286,7 @@ def get_player(player_id: int, request: Request):
     if player_id <= 0 or player_id > 99999:
         raise HTTPException(status_code=400, detail="無効な選手IDです。")
     try:
-        players = database.get_all_players()
-        player = next((p for p in players if p["id"] == player_id), None)
+        player = database.get_player_by_id(player_id)
         if player:
             logger.info(f"GET /api/players/{player_id} -> found.")
             return {"status": "success", "data": player}
@@ -263,11 +339,30 @@ def get_player_season_stats(player_name: str, request: Request):
         raise HTTPException(status_code=500, detail="成績データ取得中にエラーが発生しました。")
 
 
+@app.get("/api/players/{player_name}/trends")
+@limiter.limit("30/minute")
+def get_player_trends(
+    player_name: str,
+    request: Request,
+    days: int = Query(default=30, ge=1, le=366),
+):
+    """選手の日次スナップショット（OPS / K9 等）を返す。フロントのトレンド表示用。"""
+    player_name = _validate_name(player_name)
+    try:
+        rows = database.get_player_snapshots(player_name, days=days)
+        return {"status": "success", "data": rows, "days": days}
+    except Exception as e:
+        logger.error(f"DB error in get_player_trends: {e}")
+        raise HTTPException(status_code=500, detail="トレンドデータ取得中にエラーが発生しました。")
+
+
 @app.get("/api/teams/{team_name}/optimized-lineup")
 @limiter.limit("10/minute")
 def get_optimized_lineup(team_name: str, request: Request):
     """チームの最適編成を取得する"""
-    team_name = _validate_team(team_name)
+    validated = _validate_team(team_name)
+    assert validated is not None
+    team_name = validated
     try:
         import lineup_engine
         db_path = os.path.join(os.path.dirname(__file__), "carp_data.db")
@@ -289,7 +384,8 @@ def update_data(
     """
     ロースタースクレイピングを再実行してDBを更新する。
     【S-2】このエンドポイントはローカルホストからのみアクセス可能。
-    要シークレットトークン・1時間に3回まで。
+    REQUIRE_ADMIN_TOKEN=true のときは X-Request-Token 必須。それ以外は任意（IP 制限のみ）。
+    1時間に3回まで。
     """
     ALLOWED_SCRIPTS = {"scraper.py", "stats_scraper.py"}
     if script_name not in ALLOWED_SCRIPTS:
@@ -330,6 +426,7 @@ def update_stats(request: Request, _: None = Depends(verify_token)):
     """
     今季成績を再スクレイピングして更新する（軽量・約10〜20秒で完了）。
     【S-2】このエンドポイントはローカルホストからのみアクセス可能。
+    REQUIRE_ADMIN_TOKEN=true のときは X-Request-Token 必須。
     """
     try:
         import stats_scraper

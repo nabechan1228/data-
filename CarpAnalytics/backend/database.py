@@ -126,6 +126,21 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+def ping_db() -> None:
+    """DB が読み取り可能か検証。失敗時は例外を送出。"""
+    with _get_conn() as conn:
+        conn.execute("SELECT 1").fetchone()
+
+
+def _like_escape_metachars(s: str) -> str:
+    """LIKE パターン内で % _ \\ をリテラルとして扱うためのエスケープ（ESCAPE '\\\\' 用）。"""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _like_substring_pattern(normalized_name: str) -> str:
+    return f"%{_like_escape_metachars(normalized_name)}%"
+
+
 def init_db():
     """DBを初期化（全テーブルを再作成）"""
     with sqlite3.connect(DB_PATH) as conn:
@@ -227,6 +242,12 @@ def get_all_players() -> List[Dict]:
     return [dict(row) for row in rows]
 
 
+def get_player_by_id(player_id: int) -> Optional[Dict]:
+    with _get_conn() as conn:
+        row = conn.execute('SELECT * FROM players WHERE id = ?', (player_id,)).fetchone()
+    return dict(row) if row else None
+
+
 def get_season_stats(
     team: Optional[str] = None,
     stat_type: Optional[str] = None,
@@ -265,13 +286,14 @@ def get_player_season_stats(player_name: str) -> List[Dict]:
             ORDER BY (CASE WHEN ops IS NOT NULL THEN 1 ELSE 0 END) DESC, games DESC
         ''', (name_norm,)).fetchall()
 
-        # 完全一致がなければ部分一致（フォールバック）
+        # 完全一致がなければ部分一致（フォールバック）。LIKE メタ文字は ESCAPE で無効化
         if not rows:
+            like_pat = _like_substring_pattern(name_norm)
             rows = conn.execute('''
                 SELECT * FROM season_stats_2026
-                WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ?
+                WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ? ESCAPE '\\'
                 ORDER BY (CASE WHEN ops IS NOT NULL THEN 1 ELSE 0 END) DESC, games DESC
-            ''', (f'%{name_norm}%',)).fetchall()
+            ''', (like_pat,)).fetchall()
 
     return [dict(row) for row in rows]
 
@@ -303,13 +325,14 @@ def save_daily_snapshots(snapshots: List[Dict]):
 def get_player_snapshots(player_name: str, days: int = 30) -> List[Dict]:
     """特定選手の直近N日間のスナップショットを取得"""
     name_norm = re.sub(r'[\s　]', '', player_name)
+    like_pat = _like_substring_pattern(name_norm)
     with _get_conn() as conn:
         rows = conn.execute('''
             SELECT * FROM player_daily_snapshots
-            WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ?
+            WHERE replace(replace(player_name, ' ', ''), '　', '') LIKE ? ESCAPE '\\'
             ORDER BY snapshot_date DESC
             LIMIT ?
-        ''', (f'%{name_norm}%', days)).fetchall()
+        ''', (like_pat, days)).fetchall()
     return [dict(row) for row in rows]
 
 
