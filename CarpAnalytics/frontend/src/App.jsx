@@ -7,15 +7,22 @@ import ComparePanel from './components/ComparePanel'
 import SeasonRankings from './components/SeasonRankings'
 import LineupOptimizer from './components/LineupOptimizer'
 import { Activity, Users, RefreshCw, Search, BarChart2, Trophy, Layout } from 'lucide-react'
+import { API_URL } from './apiBase'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
-// ⚠️ 管理エンドポイント（/api/update-*）はバックエンド側でローカルIP制限済みのため
-// フロントエンドからシークレットトークンを送信する必要はありません。
+const adminRequestConfig = () => {
+  const t = import.meta.env.VITE_SCRAPE_SECRET_TOKEN
+  return t ? { headers: { 'X-Request-Token': t } } : {}
+}
+
+// 管理エンドポイントはバックエンドでローカル IP 制限。REQUIRE_ADMIN_TOKEN=true のときは
+// .env.local に VITE_SCRAPE_SECRET_TOKEN をバックエンドの SCRAPE_SECRET_TOKEN と同一で設定。
 
 // エラーサニタイズ（詳細情報を表示しない）
 const sanitizeError = (err) => {
   if (err?.response?.status === 429) return 'リクエストが多すぎます。しばらく待ってから再試行してください。'
   if (err?.response?.status === 401) return '認証エラー：シークレットトークンが正しくありません。'
+  if (err?.response?.status === 403) return 'この操作は許可されていません（アクセス制限）。'
+  if (err?.response?.status === 503) return 'サーバー設定エラーです。管理者に連絡してください。'
   if (err?.response?.status >= 500) return 'サーバーエラーが発生しました。しばらく待ってから再試行してください。'
   return 'データの取得に失敗しました。バックエンドが起動しているか確認してください。'
 }
@@ -34,6 +41,11 @@ const TEAMS = [
   'オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ'
 ]
 
+const LEAGUE_TEAMS = {
+  Central: ['広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ', '中日ドラゴンズ', '東京ヤクルトスワローズ'],
+  Pacific: ['オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ'],
+}
+
 function App() {
   const [players, setPlayers] = useState([])
   const [selectedPlayer, setSelectedPlayer] = useState(null)
@@ -50,11 +62,7 @@ function App() {
   const [view, setView] = useState('matrix') // 'matrix' or 'rankings'
   const [filterLeague, setFilterLeague] = useState('Both') // 'Central', 'Pacific', 'Both'
   const [selectedPlayerSeasonStats, setSelectedPlayerSeasonStats] = useState([])
-
-  const LEAGUE_TEAMS = {
-    'Central': ['広島東洋カープ', '読売ジャイアンツ', '阪神タイガース', '横浜DeNAベイスターズ', '中日ドラゴンズ', '東京ヤクルトスワローズ'],
-    'Pacific': ['オリックス・バファローズ', '千葉ロッテマリーンズ', '福岡ソフトバンクホークス', '東北楽天ゴールデンイーグルス', '埼玉西武ライオンズ', '北海道日本ハムファイターズ']
-  }
+  const [playerTrends, setPlayerTrends] = useState([])
 
   const fetchPlayers = useCallback(() => {
     setLoading(true)
@@ -89,7 +97,7 @@ function App() {
       })
       .filter(p => filterTeam === '全球団' || p.team === filterTeam)
       .filter(p => filterPosition === '全員' || p.position?.includes(filterPosition))
-      .filter(p => p.name?.replace(/[\s　]/g, '').includes(searchQuery.replace(/[\s　]/g, '')))
+      .filter(p => p.name?.replace(/[\s\u3000]/g, '').includes(searchQuery.replace(/[\s\u3000]/g, '')))
       .sort((a, b) => {
         if (sortType === 'potential') return b.potential_score - a.potential_score;
         if (sortType === 'area') return b.perf_area - a.perf_area;
@@ -107,37 +115,34 @@ function App() {
   }
 
   useEffect(() => {
-    if (selectedPlayer) {
-      axios.get(`${API_URL}/api/season-stats/player/${selectedPlayer.name}`)
-        .then(res => {
-          if (res.data.status === 'success') {
-            setSelectedPlayerSeasonStats(res.data.data)
-          }
-        })
-        .catch(err => console.error('Failed to fetch player stats', err))
+    if (!selectedPlayer) {
+      setSelectedPlayerSeasonStats([])
+      setPlayerTrends([])
+      return
     }
+    setPlayerTrends([])
+    const enc = encodeURIComponent(selectedPlayer.name)
+    axios.get(`${API_URL}/api/season-stats/player/${enc}`)
+      .then(res => {
+        if (res.data.status === 'success') {
+          setSelectedPlayerSeasonStats(res.data.data)
+        }
+      })
+      .catch(err => console.error('Failed to fetch player stats', err))
+    axios.get(`${API_URL}/api/players/${enc}/trends`, { params: { days: 30 } })
+      .then(res => {
+        if (res.data.status === 'success') {
+          setPlayerTrends(res.data.data || [])
+        }
+      })
+      .catch(() => setPlayerTrends([]))
   }, [selectedPlayer])
-
-  const handleUpdateData = async () => {
-    if (!window.confirm('選手データをNPBサイトから再取得します。数分かかります。よろしいですか？')) return
-    setUpdating(true)
-    setUpdateMsg(null)
-    try {
-      const res = await axios.post(`${API_URL}/api/update-data`, {})
-      setUpdateMsg({ type: 'success', text: res.data.message })
-      fetchPlayers()
-    } catch (err) {
-      setUpdateMsg({ type: 'error', text: sanitizeError(err) })
-    } finally {
-      setUpdating(false)
-    }
-  }
 
   const handleUpdateStats = async () => {
     setUpdating(true)
     setUpdateMsg(null)
     try {
-      const res = await axios.post(`${API_URL}/api/update-stats`, {})
+      const res = await axios.post(`${API_URL}/api/update-stats`, {}, adminRequestConfig())
       const updated = res.data.last_updated
         ? `（最終更新: ${new Date(res.data.last_updated).toLocaleString('ja-JP')}）`
         : ''
@@ -300,7 +305,7 @@ function App() {
           <div className="sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
           <div className="panel">
             {selectedPlayer ? (
-              <PlayerCard player={selectedPlayer} seasonStats={selectedPlayerSeasonStats} />
+              <PlayerCard player={selectedPlayer} seasonStats={selectedPlayerSeasonStats} playerTrends={playerTrends} />
             ) : (
               <p style={{ color: 'var(--text-muted)' }}>選手を選択してください</p>
             )}

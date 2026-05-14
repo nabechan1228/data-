@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Radar as RechartsRadar, PieChart, Pie, Cell } from 'recharts';
 import { Sparkles } from 'lucide-react';
 
-const PlayerCard = ({ player, seasonStats }) => {
+const PlayerCard = ({ player, seasonStats, playerTrends = [] }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [situationalMode, setSituationalMode] = useState(false);
   const [showGhost, setShowGhost] = useState(false);
@@ -258,6 +258,32 @@ const PlayerCard = ({ player, seasonStats }) => {
           onClick={() => setActiveTab('stats')}
         >🏆 成績</button>
       </div>
+
+      {Array.isArray(playerTrends) && playerTrends.length > 0 && (
+        <div className="snapshot-trends" style={{ marginBottom: '12px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+          <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-light)' }}>日次スナップショット（直近）</div>
+          <div style={{ maxHeight: '96px', overflowY: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'rgba(0,0,0,0.25)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px' }}>日付</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'right' }}>OPS</th>
+                  <th style={{ padding: '4px 6px', textAlign: 'right' }}>K/9</th>
+                </tr>
+              </thead>
+              <tbody>
+                {playerTrends.slice(0, 14).map((row) => (
+                  <tr key={`${row.snapshot_date}-${row.player_name}`}>
+                    <td style={{ padding: '3px 6px' }}>{row.snapshot_date}</td>
+                    <td style={{ textAlign: 'right', padding: '3px 6px' }}>{row.ops != null ? Number(row.ops).toFixed(3) : '—'}</td>
+                    <td style={{ textAlign: 'right', padding: '3px 6px' }}>{row.k9 != null ? Number(row.k9).toFixed(2) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'profile' && (
         <div className="profile-tab">

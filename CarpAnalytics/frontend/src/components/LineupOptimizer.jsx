@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Target, List, Thermometer, Shield, User } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001';
+import { API_URL } from '../apiBase';
 
 // M-4: エラーサニタイズ（詳細情報をユーザーに表示しない）
 const sanitizeError = (err) => {
