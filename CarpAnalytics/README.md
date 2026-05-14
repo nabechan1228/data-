@@ -73,14 +73,22 @@
    ```
 2. 依存関係のインストール
    ```bash
-   pip install fastapi uvicorn beautifulsoup4 requests pandas slowapi python-dotenv apscheduler
+   pip install -r CarpAnalytics/backend/requirements.txt
    ```
 3. 環境変数の設定
    `.env` ファイルを作成し、以下を設定
    ```env
    ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
    SCRAPE_SECRET_TOKEN=your_secure_token_here
+   # 本番で管理 API をトークン必須にする場合（スケジューラは HTTP を経由しないため影響なし）
+   # REQUIRE_ADMIN_TOKEN=true
+   # 公開デプロイで POST /api/update-* を無効化する場合
+   # ADMIN_ENDPOINTS_DISABLED=true
+   # Nginx 等の背後でクライアント IP を X-Forwarded-For から取る場合（接続元が TRUSTED_PROXY_HOSTS のときのみ信頼）
+   # TRUST_PROXY_HEADERS=true
+   # TRUSTED_PROXY_HOSTS=127.0.0.1,::1
    ```
+   フロントで `REQUIRE_ADMIN_TOKEN=true` を使う場合、`CarpAnalytics/frontend/.env.local` に `VITE_SCRAPE_SECRET_TOKEN` をバックエンドの `SCRAPE_SECRET_TOKEN` と同一値で設定してください（開発時は Vite の `/api` プロキシ経由で送信されます）。
 4. サーバーの起動
    ```bash
    uvicorn main:app --reload --port 8001
@@ -97,9 +105,10 @@
    ```
 
 ## 🔒 セキュリティ対策
-- **API Token**: データの破壊的な更新（スクレイピング再実行など）には、`X-Request-Token` ヘッダーによる認証が必須です。
+- **API Token**: `REQUIRE_ADMIN_TOKEN=true` のとき、破壊的な更新（`POST /api/update-*`）には `X-Request-Token` が必須です。未設定時はローカル IP 制限のみのとき、ヘッダーがあれば検証します。
 - **Rate Limiting**: IPアドレスごとにリクエスト回数を制限し、リソースの枯渇を防ぎます。
 - **Data Validation**: 選手名や球団名のクエリには厳格な正規表現とホワイトリストバリデーションを適用しています。
+- **監査**: [requirements.txt](backend/requirements.txt) を `pip-audit`、フロントを `npm audit` で確認してください。GitHub 向けのワークフローは [../.github/workflows/security-audit.yml](../.github/workflows/security-audit.yml) を参照してください。
 
 ## 📝 ライセンス
 本プロジェクトは学習および個人利用を目的としています。データソースであるNPB公式サイトの利用規約を遵守してください。

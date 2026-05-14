@@ -12,8 +12,10 @@ venv/
 **/.env
 **/.env.local
 
-# データベース（定期的に再生成するため除外推奨）
-# CarpAnalytics/backend/carp_data.db
+# データベース（バイナリ・再生成可能。コミットしない）
+*.db
+*.sqlite
+*.sqlite3
 
 # Node.js
 node_modules/
